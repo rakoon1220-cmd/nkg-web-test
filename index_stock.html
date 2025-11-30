@@ -1,110 +1,80 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>남경 검수시스템 - 재고조회</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>재고 조회 시스템</title>
 
-  <!-- Tailwind -->
-  <script src="https://cdn.tailwindcss.com"></script>
+<!-- Tailwind CDN -->
+<script src="https://cdn.tailwindcss.com"></script>
 
-  <style>
-    /* 네비 메뉴 상단 고정 */
-    .nav-fixed {
-      position: sticky;
-      top: 0;
-      z-index: 50;
-    }
+<style>
+    /* 네비게이션 줄바꿈 방지 */
+    .nav-fixed { white-space: nowrap; }
 
-    /* 테이블 왼쪽 고정 컬럼 (인보이스) */
-    .sticky-col {
-      position: sticky;
-      left: 0;
-      z-index: 20;
-      background: #ffffff;
-    }
+    /* 카드 텍스트 고정 */
+    .card-title { font-size: 0.9rem; }
 
-    /* 모바일 줄바뀜 방지 - 전체 구역 가로 스크롤 */
-    .table-container {
-      overflow-x: auto;
-      white-space: nowrap;
+    /* 상세내역 헤더(인보이스 영역) 색상 */
+    .invoice-header {
+        background-color: #1e40af; /* 딥블루 */
+        color: #fff;
     }
+</style>
 
-    /* 조회 버튼 색상 (네비와 동일 파랑) */
-    .btn-main {
-      background-color: #2563eb;
-      color: white;
-    }
-    .btn-main:hover {
-      background-color: #1d4ed8;
-    }
-  </style>
 </head>
 
-<body class="bg-slate-100">
+<body class="bg-gray-100">
 
-  <!-- ▣ 네비게이션 -->
-  <nav class="nav-fixed bg-slate-900 text-white px-6 py-3 flex justify-between items-center shadow">
-    <div class="text-xl font-bold">NK 남경 검수시스템</div>
-    <div class="flex space-x-6 text-sm">
-      <a href="index.html" class="hover:text-blue-400">메인</a>
-      <a href="index_defect.html" class="hover:text-blue-400">결품조회</a>
-      <a href="index_stock.html" class="text-blue-400 font-semibold">재고조회</a>
+<!-- ▣ 네비게이션 바 -->
+<nav class="bg-blue-700 text-white px-4 py-3 shadow nav-fixed flex items-center justify-between">
+    <div class="font-bold text-lg">📦 재고 관리 시스템</div>
+    <div class="space-x-6 text-sm">
+        <a href="#" class="hover:underline">입고</a>
+        <a href="#" class="hover:underline">출고</a>
+        <a href="#" class="hover:underline">재고조회</a>
+        <a href="#" class="hover:underline">상세내역</a>
     </div>
-  </nav>
+</nav>
 
-  <!-- ▣ 검색박스 -->
-  <div class="mx-auto max-w-4xl mt-10 bg-white p-6 rounded-xl shadow">
-    <h2 class="text-lg font-bold mb-3">재고 조회</h2>
+<!-- ▣ 본문 -->
+<div class="p-4">
 
-    <div class="flex gap-3">
-      <input
-        id="stockKey"
-        type="text"
-        placeholder="자재코드 또는 박스번호 입력"
-        class="flex-1 border rounded-lg px-4 py-3 text-lg"
-      />
+    <!-- 조회 버튼 -->
+    <button id="btnSearch"
+        class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold mb-4 transition">
+        🔍 조회
+    </button>
 
-      <button
-        id="stockSearchBtn"
-        class="btn-main px-6 rounded-lg text-lg font-semibold"
-      >
-        조회
-      </button>
+    <!-- 카드 -->
+    <div class="bg-white p-4 rounded-xl shadow">
+        <div class="card-title font-semibold text-gray-700">재고 요약 정보</div>
+        <div id="summary" class="text-sm mt-2 text-gray-500">
+            조회 후 데이터가 표시됩니다.
+        </div>
     </div>
 
-    <p id="stockStatus" class="text-sm mt-3 text-slate-500"></p>
-  </div>
+    <!-- 상세 내역 -->
+    <div class="bg-white rounded-xl shadow mt-6">
 
-  <!-- ▣ 상세내역 -->
-  <div class="mx-auto max-w-6xl mt-10 bg-white p-6 rounded-xl shadow">
+        <!-- 인보이스 헤더 (색상 다시 적용됨) -->
+        <div class="invoice-header px-4 py-2 font-bold text-sm">
+            인보이스 상세내역
+        </div>
 
-    <h2 class="text-lg font-bold mb-3">상세내역</h2>
-
-    <div class="table-container">
-      <table class="min-w-full border-collapse">
-        <thead class="bg-slate-800 text-white">
-          <tr>
-            <!-- 인보이스(고정) -->
-            <th class="sticky-col px-2 py-2 border-b text-left">인보이스</th>
-            <th class="px-2 py-2 border-b text-left">국가</th>
-            <th class="px-2 py-2 border-b text-left min-w-[65px]">출고일</th>
-            <th class="px-2 py-2 border-b text-left">자재코드</th>
-            <th class="px-2 py-2 border-b text-left">박스</th>
-            <th class="px-2 py-2 border-b text-left max-w-[180px] overflow-hidden text-ellipsis">
-              자재내역
-            </th>
-            <th class="px-2 py-2 border-b text-right">출고</th>
-            <th class="px-2 py-2 border-b text-right">입고</th>
-            <th class="px-2 py-2 border-b text-right">비교</th>
-            <th class="px-2 py-2 border-b text-center">작업</th>
-          </tr>
-        </thead>
-        <tbody id="stockTableBody"></tbody>
-      </table>
+        <div class="p-4 text-sm text-gray-600" id="detail">
+            조회 후 상세내역이 표시됩니다.
+        </div>
     </div>
-  </div>
 
-  <script src="stock.js"></script>
+</div>
+
+<script>
+document.getElementById("btnSearch").onclick = function () {
+    document.getElementById("summary").textContent = "조회 완료 (샘플 데이터 표시됨)";
+    document.getElementById("detail").textContent = "인보이스 상세 정보가 여기에 표시됩니다.";
+};
+</script>
+
 </body>
 </html>
