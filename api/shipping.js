@@ -15,15 +15,14 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, summary: calcSummary(rows) });
     }
 
-    // 전체 조회
+    // 전체 조회 (필터 없이)
     if (all === "true") {
       return res.status(200).json({ ok: true, data: rows });
     }
 
-    // 키워드 검색
+    // 검색
     if (key) {
-      const data = filterKey(rows, key);
-      return res.status(200).json({ ok: true, data });
+      return res.status(200).json({ ok: true, data: filterKey(rows, key) });
     }
 
     return res.status(200).json({ ok: true, data: rows });
@@ -34,28 +33,42 @@ export default async function handler(req, res) {
 }
 
 
-/* -----------------------------
+/* ----------------------------------------------------
+   문자열 정리 (숨은 문자 제거 + trim)
+---------------------------------------------------- */
+function clean(str) {
+  if (!str) return "";
+  return String(str)
+    .replace(/\uFEFF/g, "") // BOM 제거
+    .replace(/\r/g, "")
+    .replace(/\n/g, "")
+    .trim();
+}
+
+
+/* ----------------------------------------------------
    CSV 파싱
-------------------------------*/
+---------------------------------------------------- */
 function parseCSV(text) {
   const lines = text.split(/\r?\n/).slice(1);
   const out = [];
 
-  for (const line of lines) {
+  for (let line of lines) {
     if (!line.trim()) continue;
+
     const c = safeParse(line);
 
     out.push({
-      invoice:   c[0],  // A
-      type:      c[10], // K
-      container: c[9],  // J
-      cbm:       c[11], // L
-      date:      c[3],  // D (2025.12.01)
-      country:   c[4],  // E
-      work:      c[15], // P
-      location:  c[16], // Q
-      pallet:    c[18], // S
-      time:      c[19], // T
+      invoice:   clean(c[0]),  // A
+      type:      clean(c[10]), // K
+      container: clean(c[9]),  // J
+      cbm:       clean(c[11]), // L
+      date:      clean(c[3]),  // D (2025.12.01)
+      country:   clean(c[4]),  // E
+      work:      clean(c[15]), // P
+      location:  clean(c[16]), // Q
+      pallet:    clean(c[18]), // S
+      time:      clean(c[19]), // T
     });
   }
   return out;
@@ -74,9 +87,9 @@ function safeParse(row) {
 }
 
 
-/* -----------------------------
+/* ----------------------------------------------------
    요약 계산
-------------------------------*/
+---------------------------------------------------- */
 function calcSummary(rows) {
   const today = getDate(0);
   const tomorrow = getDate(1);
@@ -87,8 +100,8 @@ function calcSummary(rows) {
   rows.forEach(r => {
     if (!r.date) return;
 
-    const d = toDash(r.date); // YYYY-MM-DD
-    const J = (r.container || "").toUpperCase();
+    const d = toDash(clean(r.date));   // YYYY-MM-DD
+    const J = clean(r.container).toUpperCase();
 
     if (d === today) {
       if (J.includes("20")) t20++;
@@ -110,42 +123,43 @@ function calcSummary(rows) {
 }
 
 
-/* -----------------------------
-   검색 로직 (3종 자동판별)
-------------------------------*/
+/* ----------------------------------------------------
+   검색 (인보이스 / 날짜 / 국가 / 텍스트)
+---------------------------------------------------- */
 function filterKey(rows, key) {
-  const k = key.trim();
+  const k = clean(key);
 
-  // ▣ ① 인보이스 검색 (6~9자리 숫자)
+  // ① 인보이스 (6~9자리 숫자)
   if (/^\d{6,9}$/.test(k)) {
-    return rows.filter(r => (r.invoice || "").includes(k));
+    return rows.filter(r => clean(r.invoice).includes(k));
   }
 
-  // ▣ ② 날짜검색 (8자리 YYYYMMDD)
+  // ② YYYYMMDD → YYYY.MM.DD
   if (/^\d{8}$/.test(k)) {
-    const D = `${k.substring(0,4)}.${k.substring(4,6)}.${k.substring(6,8)}`;
-    return rows.filter(r => r.date === D);
+    const d = `${k.substring(0,4)}.${k.substring(4,6)}.${k.substring(6,8)}`;
+    return rows.filter(r => clean(r.date) === d);
   }
 
-  // ▣ ③ 부분날짜 (MMDD)
+  // ③ MMDD 부분 날짜 검색
   if (/^\d{3,4}$/.test(k)) {
-    return rows.filter(r => r.date && r.date.replace(/[.]/g,"").endsWith(k));
+    return rows.filter(r => clean(r.date).replace(/[.]/g,"").endsWith(k));
   }
 
-  // ▣ ④ 국가 / 기타 텍스트 검색
+  // ④ 국가 / 기타 텍스트
   const lower = k.toLowerCase();
   return rows.filter(r =>
-    Object.values(r).some(v => String(v).toLowerCase().includes(lower))
+    Object.values(r).some(v => clean(v).toLowerCase().includes(lower))
   );
 }
 
 
-/* 날짜 변환 2025.12.01 → 2025-12-01 */
+/* ----------------------------------------------------
+   날짜 변환
+---------------------------------------------------- */
 function toDash(d) {
   return d.replace(/\./g, "-");
 }
 
-/* 오늘/내일 */
 function getDate(add) {
   const d = new Date();
   d.setDate(d.getDate() + add);
