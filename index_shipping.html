@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>출고정보 · 남경 검수시스템</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    .nowrap { white-space: nowrap; }
+    .hidden-col { display: none; }
+  </style>
+</head>
+
+<body class="bg-slate-100 min-h-screen">
+
+  <!-- NAVIGATION BAR (재고조회와 완전 동일) -->
+  <nav class="bg-[#0A1833] text-white fixed w-full top-0 z-50 shadow">
+    <div class="max-w-6xl mx-auto px-4">
+      <div class="flex justify-between items-center h-14">
+
+        <a href="index.html" class="flex items-center gap-2">
+          <div class="w-8 h-8 bg-sky-500 rounded-lg flex items-center justify-center text-xs font-bold">NK</div>
+          <span class="font-semibold text-sm tracking-wide">남경 검수시스템</span>
+        </a>
+
+        <div class="hidden md:flex gap-6 text-sm">
+          <a href="index.html" class="hover:text-sky-400">메인</a>
+          <a href="index_defect.html" class="hover:text-sky-400">결품조회</a>
+          <a href="index_stock.html" class="hover:text-sky-400">재고조회</a>
+          <a href="index_shipping.html" class="hover:text-sky-400 text-sky-400 font-semibold">출고정보</a>
+        </div>
+
+        <button id="navToggle" class="md:hidden text-2xl">☰</button>
+      </div>
+    </div>
+
+    <div id="mobileMenu" class="hidden md:hidden bg-[#13264C] px-6 py-4 space-y-3 text-sm">
+      <a href="index.html" class="block hover:text-sky-300">메인</a>
+      <a href="index_defect.html" class="block hover:text-sky-300">결품조회</a>
+      <a href="index_stock.html" class="block hover:text-sky-300">재고조회</a>
+      <a href="index_shipping.html" class="block hover:text-sky-300 text-sky-300 font-semibold">출고정보</a>
+    </div>
+  </nav>
+
+  <!-- 네비바 여백 -->
+  <div class="h-14"></div>
+
+  <!-- MAIN -->
+  <main class="max-w-5xl mx-auto px-4 py-6 space-y-6">
+
+    <!-- ▣ 조회 영역 (재고/결품 UI 동일) -->
+    <section class="bg-white rounded-2xl shadow-md p-4 space-y-4 border border-slate-200">
+      <div class="text-sm font-semibold text-slate-700">출고정보 조회</div>
+
+      <div class="flex flex-col sm:flex-row gap-2">
+        <input id="shipKey" type="text"
+          class="flex-1 px-3 py-3 rounded-xl border border-slate-300 text-lg outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="인보이스 / 박스번호 / 국가 / 컨테이너 번호 입력" />
+
+        <button id="shipSearchBtn"
+          class="px-5 py-3 rounded-xl bg-[#0A1833] text-white text-lg font-semibold hover:bg-[#13264C] active:bg-[#09142A] transition">
+          조회
+        </button>
+      </div>
+
+      <p id="shipStatus" class="text-xs text-slate-500">조회 키를 입력하세요.</p>
+    </section>
+
+
+    <!-- ▣ 오늘/내일 요약 -->
+    <section class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+      <!-- 오늘 요약 -->
+      <div class="bg-white rounded-2xl shadow-md border border-slate-200 p-4 space-y-3">
+        <div class="text-sm font-semibold text-slate-700">오늘 출고 요약</div>
+
+        <div class="grid grid-cols-3 text-center text-sm">
+          <div>
+            <div class="font-bold text-blue-700">20PT</div>
+            <div id="today_20" class="text-lg font-semibold">-</div>
+          </div>
+          <div>
+            <div class="font-bold text-green-700">40PT</div>
+            <div id="today_40" class="text-lg font-semibold">-</div>
+          </div>
+          <div>
+            <div class="font-bold text-orange-700">LCL</div>
+            <div id="today_lcl" class="text-lg font-semibold">-</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 내일 요약 -->
+      <div class="bg-white rounded-2xl shadow-md border border-slate-200 p-4 space-y-3">
+        <div class="text-sm font-semibold text-slate-700">내일 출고 요약</div>
+
+        <div class="grid grid-cols-3 text-center text-sm">
+          <div>
+            <div class="font-bold text-blue-700">20PT</div>
+            <div id="tom_20" class="text-lg font-semibold">-</div>
+          </div>
+          <div>
+            <div class="font-bold text-green-700">40PT</div>
+            <div id="tom_40" class="text-lg font-semibold">-</div>
+          </div>
+          <div>
+            <div class="font-bold text-orange-700">LCL</div>
+            <div id="tom_lcl" class="text-lg font-semibold">-</div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+
+    <!-- ▣ 상세내역 (재고조회 테이블 UI 100% 동일) -->
+    <section class="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
+      <div class="px-4 py-3 border-b border-slate-300 text-sm text-[#0A1833] font-semibold">
+        상세내역
+      </div>
+
+      <div class="max-h-[65vh] overflow-auto">
+        <table class="min-w-full text-[13px]">
+          <thead class="bg-slate-50 border-b border-[#0A1833] text-[#0A1833] sticky top-0">
+            <tr class="whitespace-nowrap">
+
+              <th class="px-3 py-2 text-left bg-white sticky left-0 z-20">출고일</th>
+              <th class="px-3 py-2 text-left">인보이스</th>
+              <th class="px-3 py-2 text-left">국가</th>
+              <th class="px-3 py-2 text-left">위치</th>
+              <th class="px-3 py-2 text-left">파레트</th>
+              <th class="px-3 py-2 text-left">상차시간</th>
+              <th class="px-3 py-2 text-left">CBM</th>
+              <th class="px-3 py-2 text-left">컨테이너</th>
+              <th class="px-3 py-2 text-left">작업</th>
+              <th class="px-3 py-2 text-left">유형</th>
+
+            </tr>
+          </thead>
+
+          <tbody id="shipTableBody" class="divide-y divide-slate-200">
+            <!-- CSV 데이터가 들어갈 예정 -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Script -->
+  <script>
+    const navToggle=document.getElementById("navToggle");
+    const mobileMenu=document.getElementById("mobileMenu");
+    navToggle.addEventListener("click",()=>mobileMenu.classList.toggle("hidden"));
+  </script>
+
+  <!-- 기능 스크립트 ship.js (추가 예정) -->
+  <script src="ship.js"></script>
+
+</body>
+</html>
