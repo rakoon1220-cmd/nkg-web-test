@@ -10,34 +10,40 @@ export default async function handler(req, res) {
 
     const { all, key, date, summary } = req.query;
 
-    // 오늘/내일 계산
+    // 오늘 날짜 문자열
+    const today = getDate(0);
+
+    // 🔥 오늘 이전 날짜 제거 (D열이 출고일)
+    const validRows = rows.filter(r => r.date && r.date >= today);
+
+    // 요약 요청
     if (summary === "true") {
-      const result = calcSummary(rows);
+      const result = calcSummary(validRows);
       return res.status(200).json({ ok: true, summary: result });
     }
 
-    // 전체조회
+    // 전체 보기
     if (all === "true") {
-      return res.status(200).json({ ok: true, data: rows });
+      return res.status(200).json({ ok: true, data: validRows });
     }
 
-    // 날짜검색
+    // 날짜 검색
     if (date) {
-      const filtered = rows.filter(r => r.date === date);
+      const filtered = validRows.filter(r => r.date === date);
       return res.status(200).json({ ok: true, data: filtered });
     }
 
     // 키워드 검색
     if (key) {
       const k = key.toLowerCase();
-      const filtered = rows.filter(r =>
+      const filtered = validRows.filter(r =>
         Object.values(r).some(v => String(v).toLowerCase().includes(k))
       );
       return res.status(200).json({ ok: true, data: filtered });
     }
 
     // 기본: 전체
-    return res.status(200).json({ ok: true, data: rows });
+    return res.status(200).json({ ok: true, data: validRows });
 
   } catch (e) {
     return res.status(500).json({ ok: false, msg: e.message });
@@ -45,9 +51,9 @@ export default async function handler(req, res) {
 }
 
 
-/* ------------------------------
+/* -----------------------------
    CSV 파싱
---------------------------------- */
+------------------------------ */
 function parseCSV(text) {
   const lines = text.split(/\r?\n/).slice(1);
   const result = [];
@@ -61,7 +67,7 @@ function parseCSV(text) {
       type: cols[10],
       container: cols[9],
       cbm: cols[11],
-      date: cols[3],
+      date: cols[3],      // 출고일
       country: cols[4],
       work: cols[15],
       location: cols[16],
@@ -88,9 +94,9 @@ function safeParse(row) {
 }
 
 
-/* ------------------------------
-   오늘/내일 요약 계산
---------------------------------- */
+/* -----------------------------
+   오늘 / 내일 요약
+------------------------------ */
 function calcSummary(rows) {
   const today = getDate(0);
   const tomorrow = getDate(1);
@@ -102,14 +108,12 @@ function calcSummary(rows) {
     const ct = (r.container || "").toUpperCase();
     if (!ct) return;
 
-    // 오늘
     if (r.date === today) {
       if (ct.includes("20")) t20++;
       else if (ct.includes("40")) t40++;
       else if (ct.includes("LCL")) tL++;
     }
 
-    // 내일
     if (r.date === tomorrow) {
       if (ct.includes("20")) n20++;
       else if (ct.includes("40")) n40++;
