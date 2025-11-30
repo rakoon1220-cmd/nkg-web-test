@@ -1,167 +1,132 @@
-import fetch from "node-fetch";
+// ship.js — 출고정보 심플 자동표시 버전
+// - 페이지 들어오면 자동으로 CSV 불러와서
+//   오늘 이후 출고만 상세내역에 표시함
 
+// 🔗 CSV 주소
 const CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAWmUNAeyndXfdxHjR-1CakW_Tm3OzmMTng5RkB53umXwucqpxABqMMcB0y8H5cHNg7aoHYqFztz0F/pub?gid=1070360000&single=true&output=csv";
 
-export default async function handler(req, res) {
-  try {
-    const csv = await fetch(CSV_URL).then(r => r.text());
-    const rows = parseCSV(csv);
+// DOM
+const tbody = document.getElementById("shipTableBody");
+const statusTxt = document.getElementById("shipStatus");
 
-    const { all, key, summary } = req.query;
-
-    // 요약 계산
-    if (summary === "true") {
-      return res.status(200).json({ ok: true, summary: calcSummary(rows) });
-    }
-
-    // 전체 조회 (필터 없이)
-    if (all === "true") {
-      return res.status(200).json({ ok: true, data: rows });
-    }
-
-    // 검색
-    if (key) {
-      return res.status(200).json({ ok: true, data: filterKey(rows, key) });
-    }
-
-    return res.status(200).json({ ok: true, data: rows });
-
-  } catch (e) {
-    return res.status(500).json({ ok: false, msg: e.message });
-  }
-}
-
-
-/* ----------------------------------------------------
-   문자열 정리 (숨은 문자 제거 + trim)
----------------------------------------------------- */
+// 문자열 정리 (공백, BOM, 개행 제거)
 function clean(str) {
-  if (!str) return "";
+  if (str == null) return "";
   return String(str)
-    .replace(/\uFEFF/g, "") // BOM 제거
+    .replace(/\uFEFF/g, "")
     .replace(/\r/g, "")
     .replace(/\n/g, "")
     .trim();
 }
 
-
-/* ----------------------------------------------------
-   CSV 파싱
----------------------------------------------------- */
-function parseCSV(text) {
-  const lines = text.split(/\r?\n/).slice(1);
-  const out = [];
-
-  for (let line of lines) {
-    if (!line.trim()) continue;
-
-    const c = safeParse(line);
-
-    out.push({
-      invoice:   clean(c[0]),  // A
-      type:      clean(c[10]), // K
-      container: clean(c[9]),  // J
-      cbm:       clean(c[11]), // L
-      date:      clean(c[3]),  // D (2025.12.01)
-      country:   clean(c[4]),  // E
-      work:      clean(c[15]), // P
-      location:  clean(c[16]), // Q
-      pallet:    clean(c[18]), // S
-      time:      clean(c[19]), // T
-    });
-  }
-  return out;
+// 오늘 날짜를 CSV와 같은 형식으로 (YYYY.MM.DD)
+function getTodayDot() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}.${m}.${day}`;
 }
 
-function safeParse(row) {
-  let out = [], cur = "", inside = false;
-  for (let c of row) {
-    if (c === '"' && inside) inside = false;
-    else if (c === '"' && !inside) inside = true;
-    else if (c === "," && !inside) { out.push(cur); cur = ""; }
-    else cur += c;
+// CSV 한 줄 안전 파싱
+function parseRow(row) {
+  const out = [];
+  let cur = "";
+  let inside = false;
+
+  for (let ch of row) {
+    if (ch === '"' && inside) {
+      inside = false;
+    } else if (ch === '"' && !inside) {
+      inside = true;
+    } else if (ch === "," && !inside) {
+      out.push(cur);
+      cur = "";
+    } else {
+      cur += ch;
+    }
   }
   out.push(cur);
   return out;
 }
 
+// CSV 전체 파싱
+function parseCSV(text) {
+  const lines = text.split(/\r?\n/);
+  const data = [];
 
-/* ----------------------------------------------------
-   요약 계산
----------------------------------------------------- */
-function calcSummary(rows) {
-  const today = getDate(0);
-  const tomorrow = getDate(1);
+  // 0번째 줄은 헤더라 가정하고 1부터
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line || !line.trim()) continue;
+    const cols = parseRow(line);
+    data.push(cols);
+  }
+  return data;
+}
 
-  let t20=0,t40=0,tL=0;
-  let n20=0,n40=0,nL=0;
+// 테이블 렌더링 (오늘 이후만)
+function renderTable(rows) {
+  tbody.innerHTML = "";
 
-  rows.forEach(r => {
-    if (!r.date) return;
+  rows.forEach((r, idx) => {
+    const 출고일 = clean(r[3]);   // D
+    const 인보이스 = clean(r[0]); // A
+    const 국가 = clean(r[4]);     // E
+    const 위치 = clean(r[16]);    // Q
+    const 파레트 = clean(r[18]);  // S
+    const 상차시간 = clean(r[19]);// T
+    const CBM = clean(r[11]);     // L
+    const 컨테이너 = clean(r[9]); // J
+    const 작업 = clean(r[15]);    // P
+    const 유형 = clean(r[10]);    // K
 
-    const d = toDash(clean(r.date));   // YYYY-MM-DD
-    const J = clean(r.container).toUpperCase();
+    const tr = document.createElement("tr");
+    if (idx % 2 === 1) tr.classList.add("bg-slate-50"); // 짝수행 색
 
-    if (d === today) {
-      if (J.includes("20")) t20++;
-      else if (J.includes("40")) t40++;
-      else if (J.includes("LCL")) tL++;
-    }
-
-    if (d === tomorrow) {
-      if (J.includes("20")) n20++;
-      else if (J.includes("40")) n40++;
-      else if (J.includes("LCL")) nL++;
-    }
+    tr.innerHTML = `
+      <td class="px-3 py-2 border-b sticky left-0 bg-white z-10">${출고일}</td>
+      <td class="px-3 py-2 border-b">${인보이스}</td>
+      <td class="px-3 py-2 border-b">${국가}</td>
+      <td class="px-3 py-2 border-b">${위치}</td>
+      <td class="px-3 py-2 border-b">${파레트}</td>
+      <td class="px-3 py-2 border-b">${상차시간}</td>
+      <td class="px-3 py-2 border-b">${CBM}</td>
+      <td class="px-3 py-2 border-b">${컨테이너}</td>
+      <td class="px-3 py-2 border-b">${작업}</td>
+      <td class="px-3 py-2 border-b">${유형}</td>
+    `;
+    tbody.appendChild(tr);
   });
 
-  return {
-    today:    { pt20: t20, pt40: t40, lcl: tL },
-    tomorrow: { pt20: n20, pt40: n40, lcl: nL }
-  };
+  statusTxt.textContent = `${rows.length}건 표시됨 (오늘 이후 출고)`;
 }
 
+// 메인: CSV 불러와서 오늘 이후만 표시
+async function loadShipping() {
+  try {
+    statusTxt.textContent = "출고정보 불러오는 중...";
 
-/* ----------------------------------------------------
-   검색 (인보이스 / 날짜 / 국가 / 텍스트)
----------------------------------------------------- */
-function filterKey(rows, key) {
-  const k = clean(key);
+    const res = await fetch(CSV_URL);
+    const text = await res.text();
+    const allRows = parseCSV(text);
 
-  // ① 인보이스 (6~9자리 숫자)
-  if (/^\d{6,9}$/.test(k)) {
-    return rows.filter(r => clean(r.invoice).includes(k));
+    const todayDot = getTodayDot(); // "2025.12.01" 이런 형식
+
+    // D열 기준으로 오늘 이후만 필터
+    const filtered = allRows.filter(cols => {
+      const d = clean(cols[3]); // D열
+      if (!d) return false;
+      return d >= todayDot; // "YYYY.MM.DD"라 문자열 비교 가능
+    });
+
+    renderTable(filtered);
+  } catch (err) {
+    console.error(err);
+    statusTxt.textContent = "출고정보 로딩 중 오류 발생: " + err;
   }
-
-  // ② YYYYMMDD → YYYY.MM.DD
-  if (/^\d{8}$/.test(k)) {
-    const d = `${k.substring(0,4)}.${k.substring(4,6)}.${k.substring(6,8)}`;
-    return rows.filter(r => clean(r.date) === d);
-  }
-
-  // ③ MMDD 부분 날짜 검색
-  if (/^\d{3,4}$/.test(k)) {
-    return rows.filter(r => clean(r.date).replace(/[.]/g,"").endsWith(k));
-  }
-
-  // ④ 국가 / 기타 텍스트
-  const lower = k.toLowerCase();
-  return rows.filter(r =>
-    Object.values(r).some(v => clean(v).toLowerCase().includes(lower))
-  );
 }
 
-
-/* ----------------------------------------------------
-   날짜 변환
----------------------------------------------------- */
-function toDash(d) {
-  return d.replace(/\./g, "-");
-}
-
-function getDate(add) {
-  const d = new Date();
-  d.setDate(d.getDate() + add);
-  return d.toISOString().substring(0,10);
-}
+// 페이지 들어오면 자동 실행
+loadShipping();
