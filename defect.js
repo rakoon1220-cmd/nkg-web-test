@@ -1,8 +1,8 @@
 /* -----------------------------------------
-   결품조회 (클라이언트) → Netlify Functions API
+   결품조회 (클라이언트) → Vercel Functions API
 ------------------------------------------ */
 
-const API_URL = "/.netlify/functions/defect";
+const API_URL_DEFECT = "https://nkg-web-ptu8.vercel.app/api/defect";
 
 /* 로딩 표시 */
 function showLoading(msg = "조회중...") {
@@ -25,7 +25,7 @@ async function searchDefect() {
     tbody.innerHTML = "";
 
     try {
-        const url = `${API_URL}?key=${encodeURIComponent(key)}`;
+        const url = `${API_URL_DEFECT}?key=${encodeURIComponent(key)}`;
         const res = await fetch(url);
         const json = await res.json();
 
@@ -41,7 +41,7 @@ async function searchDefect() {
             return;
         }
 
-        /* 출고정보 (첫 행 기준) */
+        /* 출고요약정보 (첫행) */
         const first = rows[0];
 
         document.getElementById("sum_country").textContent = first.country || "-";

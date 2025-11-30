@@ -1,8 +1,8 @@
 /* -----------------------------------------
-   재고조회 클라이언트 → Netlify Functions API 버전
+   재고조회 클라이언트 → Vercel Functions API
 ------------------------------------------ */
 
-const API_URL = "/.netlify/functions/stock";
+const API_URL_STOCK = "https://nkg-web-ptu8.vercel.app/api/stock";
 
 /* 로딩 표시 */
 function showLoading(msg = "조회중...") {
@@ -25,7 +25,7 @@ async function searchStock() {
     tbody.innerHTML = "";
 
     try {
-        const url = `${API_URL}?key=${encodeURIComponent(key)}`;
+        const url = `${API_URL_STOCK}?key=${encodeURIComponent(key)}`;
         const res = await fetch(url);
         const json = await res.json();
 
