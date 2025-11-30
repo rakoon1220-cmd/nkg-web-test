@@ -1,45 +1,63 @@
-export function parseCsv(csvText) {
-  csvText = csvText.replace(/^\uFEFF/, ""); // BOM 제거
-
-  const lines = csvText.split(/\r?\n/).filter((l) => l.trim() !== "");
-
-  const header = splitCsvLine(lines[0]);
-  const rows = [];
-
-  for (let i = 1; i < lines.length; i++) {
-    const cols = splitCsvLine(lines[i]);
-    const obj = {};
-    header.forEach((h, idx) => {
-      obj[h.trim()] = cols[idx]?.trim() ?? "";
-    });
-    rows.push(obj);
-  }
-
-  return { header, rows };
-}
-
-// CSV 한 줄 파싱
-function splitCsvLine(line) {
-  const result = [];
-  let cur = "";
-  let inside = false;
-
-  for (let c of line) {
-    if (c === '"' && inside) {
-      inside = false;
-      continue;
+// utils/csv_parser.js
+export function parseCSV(csvText) {
+    // BOM 제거
+    if (csvText.charCodeAt(0) === 0xFEFF) {
+        csvText = csvText.slice(1);
     }
-    if (c === '"' && !inside) {
-      inside = true;
-      continue;
-    }
-    if (c === "," && !inside) {
-      result.push(cur);
-      cur = "";
-      continue;
-    }
-    cur += c;
-  }
-  result.push(cur);
-  return result;
+
+    // 줄 단위 분리
+    const lines = csvText
+        .replace(/\r/g, "")
+        .split("\n")
+        .filter(line => line.trim() !== "");
+
+    if (lines.length < 2) return { header: [], rows: [] };
+
+    // 구분자 자동 감지 ( , 또는 ; )
+    const firstLine = lines[0];
+    const delimiter = firstLine.includes(";") ? ";" : ",";
+
+    // CSV 한 줄 파싱 함수
+    const parseLine = (line) => {
+        const result = [];
+        let current = "";
+        let insideQuotes = false;
+
+        for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            const next = line[i + 1];
+
+            if (char === '"' && !insideQuotes) {
+                insideQuotes = true;
+                continue;
+            }
+
+            if (char === '"' && insideQuotes && next === '"') {
+                current += '"';
+                i++;
+                continue;
+            }
+
+            if (char === '"' && insideQuotes) {
+                insideQuotes = false;
+                continue;
+            }
+
+            if (char === delimiter && !insideQuotes) {
+                result.push(current.trim());
+                current = "";
+                continue;
+            }
+
+            current += char;
+        }
+
+        result.push(current.trim());
+        return result;
+    };
+
+    const header = parseLine(lines[0]).map(h => h.trim());
+    const rows = lines.slice(1).map(line => parseLine(line));
+
+    return { header, rows };
 }
