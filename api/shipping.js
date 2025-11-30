@@ -8,42 +8,30 @@ export default async function handler(req, res) {
     const csv = await fetch(CSV_URL).then(r => r.text());
     const rows = parseCSV(csv);
 
-    const { all, key, date, summary } = req.query;
-
-    // 오늘 날짜 문자열
     const today = getDate(0);
 
-    // 🔥 오늘 이전 날짜 제거 (D열이 출고일)
-    const validRows = rows.filter(r => r.date && r.date >= today);
+    // 오늘 이전 데이터 제거
+    const valid = rows.filter(r => r.date && r.date >= today);
 
-    // 요약 요청
+    const { all, key, summary } = req.query;
+
+    // 요약 계산
     if (summary === "true") {
-      const result = calcSummary(validRows);
-      return res.status(200).json({ ok: true, summary: result });
+      return res.status(200).json({ ok: true, summary: calcSummary(valid) });
     }
 
-    // 전체 보기
+    // 전체 조회
     if (all === "true") {
-      return res.status(200).json({ ok: true, data: validRows });
+      return res.status(200).json({ ok: true, data: valid });
     }
 
-    // 날짜 검색
-    if (date) {
-      const filtered = validRows.filter(r => r.date === date);
-      return res.status(200).json({ ok: true, data: filtered });
-    }
-
-    // 키워드 검색
+    // 키워드 조회
     if (key) {
-      const k = key.toLowerCase();
-      const filtered = validRows.filter(r =>
-        Object.values(r).some(v => String(v).toLowerCase().includes(k))
-      );
-      return res.status(200).json({ ok: true, data: filtered });
+      const data = filterKey(valid, key);
+      return res.status(200).json({ ok: true, data });
     }
 
-    // 기본: 전체
-    return res.status(200).json({ ok: true, data: validRows });
+    return res.status(200).json({ ok: true, data: valid });
 
   } catch (e) {
     return res.status(500).json({ ok: false, msg: e.message });
@@ -52,37 +40,34 @@ export default async function handler(req, res) {
 
 
 /* -----------------------------
-   CSV 파싱
------------------------------- */
+   텍스트 → 컬럼 매핑
+------------------------------*/
 function parseCSV(text) {
   const lines = text.split(/\r?\n/).slice(1);
-  const result = [];
+  const out = [];
 
   for (const line of lines) {
     if (!line.trim()) continue;
-    const cols = safeParse(line);
+    const c = safeParse(line);
 
-    result.push({
-      invoice: cols[0],
-      type: cols[10],
-      container: cols[9],
-      cbm: cols[11],
-      date: cols[3],      // 출고일
-      country: cols[4],
-      work: cols[15],
-      location: cols[16],
-      pallet: cols[18],
-      time: cols[19]
+    out.push({
+      invoice:     c[0],   // A
+      type:        c[10],  // K
+      container:   c[9],   // J
+      cbm:         c[11],  // L
+      date:        c[3],   // D
+      country:     c[4],   // E
+      work:        c[15],  // P
+      location:    c[16],  // Q
+      pallet:      c[18],  // S
+      time:        c[19],  // T
     });
   }
-  return result;
+  return out;
 }
 
 function safeParse(row) {
-  const out = [];
-  let cur = "";
-  let inside = false;
-
+  let out = [], cur = "", inside = false;
   for (let c of row) {
     if (c === '"' && inside) inside = false;
     else if (c === '"' && !inside) inside = true;
@@ -95,38 +80,71 @@ function safeParse(row) {
 
 
 /* -----------------------------
-   오늘 / 내일 요약
------------------------------- */
+   요약 계산 (오늘 / 내일)
+------------------------------*/
 function calcSummary(rows) {
   const today = getDate(0);
-  const tomorrow = getDate(1);
+  const tom = getDate(1);
 
-  let t20 = 0, t40 = 0, tL = 0;
-  let n20 = 0, n40 = 0, nL = 0;
+  let t20=0,t40=0,tL=0;
+  let n20=0,n40=0,nL=0;
 
   rows.forEach(r => {
-    const ct = (r.container || "").toUpperCase();
-    if (!ct) return;
+    if (!r.date) return;
+    const J = (r.container || "").toUpperCase();
 
     if (r.date === today) {
-      if (ct.includes("20")) t20++;
-      else if (ct.includes("40")) t40++;
-      else if (ct.includes("LCL")) tL++;
+      if (J.includes("20")) t20++;
+      else if (J.includes("40")) t40++;
+      else if (J.includes("LCL")) tL++;
     }
 
-    if (r.date === tomorrow) {
-      if (ct.includes("20")) n20++;
-      else if (ct.includes("40")) n40++;
-      else if (ct.includes("LCL")) nL++;
+    if (r.date === tom) {
+      if (J.includes("20")) n20++;
+      else if (J.includes("40")) n40++;
+      else if (J.includes("LCL")) nL++;
     }
   });
 
   return {
     today: { pt20: t20, pt40: t40, lcl: tL },
-    tomorrow: { pt20: n20, pt40: n40, lcl: nL }
+    tomorrow:{ pt20: n20, pt40: n40, lcl: nL }
   };
 }
 
+
+/* -----------------------------
+   부분 검색 / 날짜 검색 / 전체 검색
+------------------------------*/
+function filterKey(rows, key) {
+  const raw = key.trim();
+
+  // 8자리 날짜 YYYYMMDD
+  if (/^\d{8}$/.test(raw)) {
+    const y = raw.substring(0,4);
+    const m = raw.substring(4,6);
+    const d = raw.substring(6,8);
+    const full = `${y}-${m}-${d}`;
+    return rows.filter(r => r.date === full);
+  }
+
+  // 3~4자리 부분 날짜 MMDD
+  if (/^\d{3,4}$/.test(raw)) {
+    return rows.filter(r =>
+      r.date && r.date.replace(/-/g,"").endsWith(raw)
+    );
+  }
+
+  // 일반 문자열 검색
+  const lower = raw.toLowerCase();
+  return rows.filter(r =>
+    Object.values(r).some(v =>
+      String(v).toLowerCase().includes(lower)
+    )
+  );
+}
+
+/* 날짜 조합 */
 function getDate(add) {
   const d = new Date();
   d.setDate(d.getDate() + add);

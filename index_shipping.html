@@ -43,13 +43,11 @@
     </div>
   </nav>
 
-  <!-- 네비바 여백 -->
   <div class="h-14"></div>
 
-  <!-- MAIN -->
   <main class="max-w-5xl mx-auto px-4 py-6 space-y-6">
 
-    <!-- ▣ 조회 영역 (재고/결품 UI 동일) -->
+    <!-- ▣ 조회 영역 -->
     <section class="bg-white rounded-2xl shadow-md p-4 space-y-4 border border-slate-200">
       <div class="text-sm font-semibold text-slate-700">출고정보 조회</div>
 
@@ -68,10 +66,24 @@
     </section>
 
 
-    <!-- ▣ 오늘/내일 요약 -->
+    <!-- 🔵 ▣ 전체조회 + 날짜조회 버튼 추가된 영역 -->
+    <section class="flex gap-3">
+      <button id="btnAll"
+        class="flex-1 px-4 py-3 rounded-xl bg-slate-700 text-white text-lg font-semibold hover:bg-slate-800">
+        전체조회
+      </button>
+
+      <button id="btnDate"
+        class="flex-1 px-4 py-3 rounded-xl bg-blue-600 text-white text-lg font-semibold hover:bg-blue-700">
+        날짜조회
+      </button>
+    </section>
+    <!-- 🔵 여기까지 추가됨 -->
+
+
+    <!-- 오늘/내일 요약 -->
     <section class="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-      <!-- 오늘 요약 -->
       <div class="bg-white rounded-2xl shadow-md border border-slate-200 p-4 space-y-3">
         <div class="text-sm font-semibold text-slate-700">오늘 출고 요약</div>
 
@@ -91,7 +103,6 @@
         </div>
       </div>
 
-      <!-- 내일 요약 -->
       <div class="bg-white rounded-2xl shadow-md border border-slate-200 p-4 space-y-3">
         <div class="text-sm font-semibold text-slate-700">내일 출고 요약</div>
 
@@ -113,8 +124,7 @@
 
     </section>
 
-
-    <!-- ▣ 상세내역 (재고조회 테이블 UI 100% 동일) -->
+    <!-- 상세내역 -->
     <section class="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
       <div class="px-4 py-3 border-b border-slate-300 text-sm text-[#0A1833] font-semibold">
         상세내역
@@ -139,23 +149,19 @@
             </tr>
           </thead>
 
-          <tbody id="shipTableBody" class="divide-y divide-slate-200">
-            <!-- CSV 데이터가 들어갈 예정 -->
-          </tbody>
+          <tbody id="shipTableBody" class="divide-y divide-slate-200"></tbody>
         </table>
       </div>
     </section>
 
   </main>
 
-  <!-- Script -->
   <script>
     const navToggle=document.getElementById("navToggle");
     const mobileMenu=document.getElementById("mobileMenu");
     navToggle.addEventListener("click",()=>mobileMenu.classList.toggle("hidden"));
   </script>
 
-  <!-- 기능 스크립트 ship.js (추가 예정) -->
   <script src="ship.js"></script>
 
 </body>

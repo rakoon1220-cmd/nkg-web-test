@@ -1,10 +1,7 @@
 /* ---------------------------------------------------------
-   ship.js (API 기반 최종 버전)
-   - API: /api/shipping
-   - 기능: 전체보기 / 키워드검색 / 날짜검색 / 요약 표시
+   ship.js — 출고정보 최종 완성본
 --------------------------------------------------------- */
 
-// DOM
 const tbody = document.getElementById("shipTableBody");
 const statusTxt = document.getElementById("shipStatus");
 
@@ -20,45 +17,36 @@ const btnSearch = document.getElementById("shipSearchBtn");
 const btnAll = document.getElementById("btnAll");
 const btnDate = document.getElementById("btnDate");
 
-// API BASE
 const API = "/api/shipping";
 
 
-/* ---------------------------------------------------------
-   초기: 요약 로딩
---------------------------------------------------------- */
+/* -------------------- 요약 --------------------- */
+
 async function loadSummary() {
-  try {
-    const res = await fetch(`${API}?summary=true`);
-    const json = await res.json();
-    if (!json.ok) return;
+  const res = await fetch(`${API}?summary=true`);
+  const json = await res.json();
+  if (!json.ok) return;
 
-    const t = json.summary.today;
-    const n = json.summary.tomorrow;
+  const t = json.summary.today;
+  const n = json.summary.tomorrow;
 
-    today20.textContent = t.pt20;
-    today40.textContent = t.pt40;
-    todayLCL.textContent = t.lcl;
+  today20.textContent = t.pt20;
+  today40.textContent = t.pt40;
+  todayLCL.textContent = t.lcl;
 
-    tom20.textContent = n.pt20;
-    tom40.textContent = n.pt40;
-    tomLCL.textContent = n.lcl;
-  } catch {
-    statusTxt.textContent = "요약 로딩 실패";
-  }
+  tom20.textContent = n.pt20;
+  tom40.textContent = n.pt40;
+  tomLCL.textContent = n.lcl;
 }
 
 
-/* ---------------------------------------------------------
-   테이블 렌더링
---------------------------------------------------------- */
+/* -------------------- 테이블 --------------------- */
+
 function renderRows(list) {
   tbody.innerHTML = "";
 
   list.forEach((r, i) => {
     const tr = document.createElement("tr");
-
-    // 짝수행 색상
     if (i % 2 === 1) tr.classList.add("bg-slate-50");
 
     tr.innerHTML = `
@@ -76,21 +64,20 @@ function renderRows(list) {
 
     tbody.appendChild(tr);
   });
+
   statusTxt.textContent = `${list.length}건 조회됨`;
 }
 
 
-/* ---------------------------------------------------------
-   전체조회
---------------------------------------------------------- */
+/* -------------------- 전체조회 --------------------- */
+
 async function loadAll() {
-  statusTxt.textContent = "전체 데이터 불러오는 중...";
+  statusTxt.textContent = "전체 조회 중...";
 
   const res = await fetch(`${API}?all=true`);
   const json = await res.json();
-
   if (!json.ok) {
-    statusTxt.textContent = "데이터 로드 실패";
+    statusTxt.textContent = "전체 조회 실패";
     return;
   }
 
@@ -98,13 +85,12 @@ async function loadAll() {
 }
 
 
-/* ---------------------------------------------------------
-   검색
---------------------------------------------------------- */
+/* -------------------- 검색 --------------------- */
+
 async function searchKeyword() {
   const key = document.getElementById("shipKey").value.trim();
   if (!key) {
-    statusTxt.textContent = "검색 키를 입력하세요.";
+    statusTxt.textContent = "검색어를 입력하세요.";
     return;
   }
 
@@ -122,52 +108,42 @@ async function searchKeyword() {
 }
 
 
-/* ---------------------------------------------------------
-   날짜검색
---------------------------------------------------------- */
+/* -------------------- 날짜조회 --------------------- */
+
 async function dateSearch() {
-  const pick = prompt("조회 날짜 선택:\n1 = 오늘\n2 = 내일\n직접입력 = YYYY-MM-DD");
+  const pick = prompt("조회 날짜 입력: YYYY-MM-DD 또는 MMDD 또는 1=오늘 2=내일");
   if (!pick) return;
 
-  let target = "";
+  let key = pick.trim();
 
-  if (pick === "1") target = getDateStr(0);
-  else if (pick === "2") target = getDateStr(1);
-  else target = pick;
+  if (key === "1") key = getDate(0);
+  if (key === "2") key = getDate(1);
 
-  statusTxt.textContent = `${target} 조회 중...`;
+  statusTxt.textContent = `${key} 검색 중...`;
 
-  const res = await fetch(`${API}?date=${target}`);
+  const res = await fetch(`${API}?key=${encodeURIComponent(key)}`);
   const json = await res.json();
-
-  if (!json.ok) {
-    statusTxt.textContent = "날짜 조회 실패";
-    return;
-  }
 
   renderRows(json.data);
 }
 
 
-/* ---------------------------------------------------------
-   날짜 포맷
---------------------------------------------------------- */
-function getDateStr(add) {
+/* -------------------- 날짜 도우미 --------------------- */
+
+function getDate(add) {
   const d = new Date();
   d.setDate(d.getDate() + add);
   return d.toISOString().split("T")[0];
 }
 
 
-/* ---------------------------------------------------------
-   이벤트 연결
---------------------------------------------------------- */
+/* -------------------- 이벤트 --------------------- */
+
 btnSearch.addEventListener("click", searchKeyword);
 btnAll?.addEventListener("click", loadAll);
 btnDate?.addEventListener("click", dateSearch);
 
 
-/* ---------------------------------------------------------
-   페이지 시작 시 동작
---------------------------------------------------------- */
+/* -------------------- 초기 실행 --------------------- */
+
 loadSummary();
