@@ -9,15 +9,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
-    /* ◼ 네비게이션 고정 + 줄바뀜 방지 */
-    .nav-fixed { 
-      position: sticky;
-      top: 0;
-      z-index: 50;
-      white-space: nowrap;
-    }
-
-    /* ◼ 테이블 왼쪽 고정 컬럼 */
+    /* 테이블 왼쪽 고정 컬럼 (인보이스) */
     .sticky-col {
       position: sticky;
       left: 0;
@@ -25,13 +17,13 @@
       background: #ffffff;
     }
 
-    /* ◼ 모바일 테이블 스크롤 */
+    /* 모바일에서 가로 스크롤 */
     .table-container {
       overflow-x: auto;
       white-space: nowrap;
     }
 
-    /* ◼ 조회 버튼 색상 통일 */
+    /* 조회 버튼 색상 (메인과 통일) */
     .btn-main {
       background-color: #2563eb;
       color: white;
@@ -44,68 +36,93 @@
 
 <body class="bg-slate-100">
 
-  <!-- ▣ 네비게이션 바 -->
-  <nav class="nav-fixed bg-slate-900 text-white px-6 py-3 flex justify-between items-center shadow">
-    <div class="flex items-center gap-3">
-      <div class="bg-blue-500 text-white px-3 py-1 rounded-lg font-bold">NK</div>
-      <div class="text-xl font-bold">남경 검수시스템</div>
+  <!-- ▣ 상단 헤더 (NK + 햄버거) -->
+  <header class="bg-slate-900 text-white px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <div class="bg-blue-500 w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm">
+        NK
+      </div>
+      <div class="text-sm font-semibold">남경 검수시스템</div>
     </div>
+    <button id="navToggle" class="text-2xl leading-none">
+      &#9776;
+    </button>
+  </header>
 
-    <div class="flex space-x-6 text-sm">
-      <a href="index.html" class="hover:text-blue-400">메인</a>
-      <a href="index_defect.html" class="hover:text-blue-400">결품조회</a>
-      <a href="index_stock.html" class="text-blue-400 font-semibold">재고조회</a>
-    </div>
+  <!-- ▣ 드롭다운 네비게이션 (메인/결품/재고) -->
+  <nav id="navMenu" class="bg-slate-800 text-white px-4 py-3 space-y-2 text-sm hidden">
+    <a href="index.html" class="block hover:text-blue-300">메인</a>
+    <a href="index_defect.html" class="block hover:text-blue-300">결품조회</a>
+    <a href="index_stock.html" class="block text-blue-300 font-semibold">재고조회</a>
   </nav>
 
-  <!-- ▣ 검색 박스 -->
-  <div class="mx-auto max-w-4xl mt-10 bg-white p-6 rounded-xl shadow">
-    <h2 class="text-lg font-bold mb-3">재고 조회</h2>
+  <!-- ▣ 메인 컨텐츠 (메인 화면과 동일 구조) -->
+  <main class="max-w-md mx-auto px-4 py-6 space-y-4">
 
-    <div class="flex gap-3">
-      <input
-        id="stockKey"
-        type="text"
-        placeholder="자재코드 또는 박스번호 입력"
-        class="flex-1 border rounded-lg px-4 py-3 text-lg"
-      />
-
-      <button id="stockSearchBtn" class="btn-main px-6 rounded-lg text-lg font-semibold">
-        조회
-      </button>
+    <!-- 안내문 -->
+    <div class="text-sm text-slate-600">
+      사용할 기능을 선택하세요.
     </div>
 
-    <p id="stockStatus" class="text-sm mt-3 text-slate-500"></p>
-  </div>
+    <!-- 검색 박스 -->
+    <section class="bg-white p-4 rounded-xl shadow space-y-3">
+      <h2 class="text-base font-bold">재고 조회</h2>
 
-  <!-- ▣ 상세내역 테이블 -->
-  <div class="mx-auto max-w-6xl mt-10 bg-white p-6 rounded-xl shadow">
+      <div class="flex gap-3">
+        <input
+          id="stockKey"
+          type="text"
+          placeholder="자재코드 또는 박스번호 입력"
+          class="flex-1 border rounded-lg px-3 py-2 text-base"
+        />
+        <button
+          id="stockSearchBtn"
+          class="btn-main px-4 rounded-lg text-base font-semibold"
+        >
+          조회
+        </button>
+      </div>
 
-    <h2 class="text-lg font-bold mb-3">상세내역</h2>
+      <p id="stockStatus" class="text-xs mt-1 text-slate-500"></p>
+    </section>
 
-    <div class="table-container">
-      <table class="min-w-full border-collapse">
-        <thead class="bg-slate-800 text-white">
-          <tr>
-            <th class="sticky-col px-2 py-2 border-b text-left">인보이스</th>
-            <th class="px-2 py-2 border-b text-left">국가</th>
-            <th class="px-2 py-2 border-b text-left min-w-[65px]">출고일</th>
-            <th class="px-2 py-2 border-b text-left">자재코드</th>
-            <th class="px-2 py-2 border-b text-left">박스</th>
-            <th class="px-2 py-2 border-b text-left max-w-[180px] overflow-hidden text-ellipsis">
-              자재내역
-            </th>
-            <th class="px-2 py-2 border-b text-right">출고</th>
-            <th class="px-2 py-2 border-b text-right">입고</th>
-            <th class="px-2 py-2 border-b text-right">비교</th>
-            <th class="px-2 py-2 border-b text-center">작업</th>
-          </tr>
-        </thead>
-        <tbody id="stockTableBody"></tbody>
-      </table>
-    </div>
+    <!-- 상세내역 테이블 카드 -->
+    <section class="bg-white p-4 rounded-xl shadow space-y-3">
+      <h2 class="text-base font-bold">상세내역</h2>
 
-  </div>
+      <div class="table-container">
+        <table class="min-w-full border-collapse text-xs">
+          <thead class="bg-slate-800 text-white">
+            <tr>
+              <!-- 인보이스(고정) -->
+              <th class="sticky-col px-2 py-2 border-b text-left">인보이스</th>
+              <th class="px-2 py-2 border-b text-left">국가</th>
+              <th class="px-2 py-2 border-b text-left min-w-[65px]">출고일</th>
+              <th class="px-2 py-2 border-b text-left">자재코드</th>
+              <th class="px-2 py-2 border-b text-left">박스</th>
+              <th class="px-2 py-2 border-b text-left max-w-[180px] overflow-hidden text-ellipsis">
+                자재내역
+              </th>
+              <th class="px-2 py-2 border-b text-right">출고</th>
+              <th class="px-2 py-2 border-b text-right">입고</th>
+              <th class="px-2 py-2 border-b text-right">비교</th>
+              <th class="px-2 py-2 border-b text-center">작업</th>
+            </tr>
+          </thead>
+          <tbody id="stockTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    // 햄버거 버튼으로 네비게이션 열고 닫기
+    document.getElementById("navToggle").addEventListener("click", function () {
+      const menu = document.getElementById("navMenu");
+      menu.classList.toggle("hidden");
+    });
+  </script>
 
   <script src="stock.js"></script>
 </body>
