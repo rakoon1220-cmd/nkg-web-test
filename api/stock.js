@@ -1,4 +1,4 @@
-// api/stock.js  (FINAL STABLE VERSION)
+// /api/stock.js — 재고조회 안정판
 
 const SAP_CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAWmUNAeyndXfdxHjR-1CakW_Tm3OzmMTng5RkB53umXwucqpxABqMMcB0y8H5cHNg7aoHYqFztz0F/pub?gid=221455512&single=true&output=csv";
@@ -6,10 +6,9 @@ const SAP_CSV_URL =
 const WMS_CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAWmUNAeyndXfdxHjR-1CakW_Tm3OzmMTng5RkB53umXwucqpxABqMMcB0y8H5cHNg7aoHYqFztz0F/pub?gid=1850233363&single=true&output=csv";
 
-
-/* -----------------------------------------------------
-   CSV 파서 (정밀형)
------------------------------------------------------ */
+/* ------------------------------------------------
+   공통 유틸
+--------------------------------------------------*/
 function parseCsvPrecise(text) {
   const rows = [];
   let row = [];
@@ -44,9 +43,15 @@ function parseCsvPrecise(text) {
   return rows;
 }
 
-/* -----------------------------------------------------
-   날짜 파싱 (모든 구글시트 날짜 형식 지원)
------------------------------------------------------ */
+function clean(str) {
+  if (str == null) return "";
+  return String(str)
+    .replace(/\uFEFF/g, "")
+    .replace(/\r/g, "")
+    .replace(/\n/g, " ")
+    .trim();
+}
+
 function parseYmd(text) {
   if (!text) return null;
   let s = String(text).trim().replace(/\s+/g, "");
@@ -54,46 +59,39 @@ function parseYmd(text) {
 
   let y, m, d;
 
-  // yyyy.mm.dd
   if (s.includes(".")) {
     const parts = s.split(".");
     if (parts.length >= 3) {
-      y = parseInt(parts[0]);
-      m = parseInt(parts[1]);
-      d = parseInt(parts[2]);
+      y = parseInt(parts[0], 10);
+      m = parseInt(parts[1], 10);
+      d = parseInt(parts[2], 10);
     }
-  }
-  // yyyy-mm-dd or mm-dd-yyyy
-  else if (s.includes("-")) {
+  } else if (s.includes("-")) {
     const parts = s.split("-");
     if (parts.length === 3) {
       if (parts[0].length === 4) {
-        y = parseInt(parts[0]);
-        m = parseInt(parts[1]);
-        d = parseInt(parts[2]);
+        y = parseInt(parts[0], 10);
+        m = parseInt(parts[1], 10);
+        d = parseInt(parts[2], 10);
       } else {
-        m = parseInt(parts[0]);
-        d = parseInt(parts[1]);
-        y = parseInt(parts[2]);
+        m = parseInt(parts[0], 10);
+        d = parseInt(parts[1], 10);
+        y = parseInt(parts[2], 10);
       }
     }
-  }
-  // mm/dd or mm/dd/yyyy
-  else if (s.includes("/")) {
+  } else if (s.includes("/")) {
     const parts = s.split("/");
     if (parts.length === 3) {
-      m = parseInt(parts[0]);
-      d = parseInt(parts[1]);
-      y = parseInt(parts[2]);
+      m = parseInt(parts[0], 10);
+      d = parseInt(parts[1], 10);
+      y = parseInt(parts[2], 10);
     } else if (parts.length === 2) {
       const now = new Date();
       y = now.getFullYear();
-      m = parseInt(parts[0]);
-      d = parseInt(parts[1]);
+      m = parseInt(parts[0], 10);
+      d = parseInt(parts[1], 10);
     }
-  }
-  // Date() 가능한 경우
-  else {
+  } else {
     const dt = new Date(s);
     if (!isNaN(dt.getTime())) {
       y = dt.getFullYear();
@@ -108,7 +106,11 @@ function parseYmd(text) {
 
 function todayYmd() {
   const n = new Date();
-  return n.getFullYear() * 10000 + (n.getMonth() + 1) * 100 + n.getDate();
+  return (
+    n.getFullYear() * 10000 +
+    (n.getMonth() + 1) * 100 +
+    n.getDate()
+  );
 }
 
 function toNumber(v) {
@@ -121,15 +123,17 @@ function isNumeric(str) {
   return /^[0-9]+$/.test(str);
 }
 
-/* -----------------------------------------------------
-   Vercel API
------------------------------------------------------ */
+/* ------------------------------------------------
+   API Handler
+--------------------------------------------------*/
 export default async function handler(req, res) {
   try {
     const { key } = req.query;
 
     if (!key) {
-      return res.status(400).json({ ok: false, msg: "검색 키가 없습니다." });
+      return res
+        .status(400)
+        .json({ ok: false, msg: "검색 키가 없습니다." });
     }
 
     const rawKey = String(key).trim();
@@ -137,55 +141,72 @@ export default async function handler(req, res) {
     const numeric = isNumeric(rawKey);
     const today = todayYmd();
 
-    /* 1) SAP CSV */
+    // 1) SAP CSV
     const sapRes = await fetch(SAP_CSV_URL);
+    if (!sapRes.ok) {
+      throw new Error("SAP CSV 요청 실패: " + sapRes.status);
+    }
     const sapText = await sapRes.text();
     const sapRows = parseCsvPrecise(sapText);
     const sapData = sapRows.slice(1);
 
-    /* 2) WMS CSV */
+    // 2) WMS CSV
     const wmsRes = await fetch(WMS_CSV_URL);
+    if (!wmsRes.ok) {
+      throw new Error("WMS CSV 요청 실패: " + wmsRes.status);
+    }
     const wmsText = await wmsRes.text();
     const wmsRows = parseCsvPrecise(wmsText);
     const wmsData = wmsRows.slice(1);
 
-    /* 3) WMS 입고 맵 (인보이스+자재코드 → 입고수량 합) */
+    // 3) WMS 입고 맵 (인보이스+자재코드 → 입고수량 합)
     const wmsMap = new Map();
     for (const r of wmsData) {
-      const full = (r[0] || "").trim();
+      const full = clean(r[0]);
       if (!full) continue;
 
       const qty = toNumber(r[4]);
       wmsMap.set(full, (wmsMap.get(full) || 0) + qty);
     }
 
-    /* 4) 최종 조회 결과 생성 */
+    // 4) 최종 결과 생성
     const matched = [];
 
     for (const r of sapData) {
       if (!r || r.length === 0) continue;
 
-      const keyFull = (r[0] || "").trim();
-      const invoice = (r[1] || "").trim();
-      const dateStr = (r[4] || "").trim();
-      const country = (r[5] || "").trim();
-      const material = (r[6] || "").trim();
-      const desc = (r[7] || "").trim();
+      // === 고정 인덱스 (SAP 시트) ===
+      // 0: 인보이스+자재코드
+      // 1: 인보이스
+      // 4: 출고일
+      // 5: 국가
+      // 6: 자재코드
+      // 7: 자재내역
+      // 8: 출고
+      // 9: 박스번호
+      // 12: 컨테이너
+      // 16: 작업여부
+      const keyFull = clean(r[0]);
+      const invoice = clean(r[1]);
+      const dateStr = clean(r[4]);
+      const country = clean(r[5]);
+      const material = clean(r[6]);
+      const desc = clean(r[7]);
       const outQty = toNumber(r[8]);
-      const box = (r[9] || "").trim();
-      const work = (r[18] || "").trim();
+      const box = clean(r[9]);
+      const work = clean(r[16]);
 
-      /* 🔥 출고일 날짜 필터 (오늘 이전 데이터 제외) */
+      // 출고일 필터 (오늘 포함 이후만)
       const parsed = parseYmd(dateStr);
       if (parsed && parsed.ymd < today) continue;
 
-      /* 🔍 검색키 필터 */
+      // 검색 키 필터
       if (numeric) {
-        // 숫자 → 자재코드(G)
-        if (material !== rawKey) continue;
+        // 숫자 → 자재코드 부분일치 (예: 7768 → 0000007768…)
+        if (!material.includes(rawKey)) continue;
       } else {
-        // 영문+숫자 → 박스번호(J)
-        if (box.toUpperCase() !== keyUpper) continue;
+        // 영문/문자 → 박스번호 부분일치
+        if (!box.toUpperCase().includes(keyUpper)) continue;
       }
 
       const inQty = toNumber(wmsMap.get(keyFull));

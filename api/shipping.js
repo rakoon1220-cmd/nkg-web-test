@@ -1,150 +1,187 @@
-// =======================================================
-// /api/shipping.js — 완전 안정판 (Node.js 강제 + CSV 안전파서)
-// =======================================================
+// /api/shipping.js — 출고정보 상세내역 안정판
 
-// ★★★★★ Node.js 런타임 강제 (defect/stock API 보호)
-export const config = {
-  runtime: 'nodejs'
-};
+const CSV_URL =
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAWmUNAeyndXfdxHjR-1CakW_Tm3OzmMTng5RkB53umXwucqpxABqMMcB0y8H5cHNg7aoHYqFztz0F/pub?gid=1070360000&single=true&output=csv";
 
-export default async function handler(req, res) {
-  try {
-    const CSV_URL =
-      "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAWmUNAeyndXfdxHjR-1CakW_Tm3OzmMTng5RkB53umXwucqpxABqMMcB0y8H5cHNg7aoHYqFztz0F/pub?gid=1070360000&single=true&output=csv";
-
-    // CSV 원본
-    const original = await fetch(CSV_URL).then(r => r.text());
-
-    // ★★★★★ 셀 내부 줄바꿈 완전 제거 (멀티라인 텍스트 대응)
-    const fixed = original.replace(/"[^"]*"/g, block => {
-      return block.replace(/\r?\n/g, " ").replace(/\s+/g, " ");
-    });
-
-    // CSV 파싱
-    const rows = parseCSV(fixed);
-
-    const todayYmd = getTodayYMD();
-
-    // 오늘 포함 + 이후 날짜만 필터
-    const filtered = rows.filter(r => r.ymd >= todayYmd);
-
-    // 날짜 순 정렬
-    filtered.sort((a, b) => a.ymd - b.ymd);
-
-    return res.status(200).json({ ok: true, data: filtered });
-
-  } catch (err) {
-    return res.status(500).json({ ok: false, msg: err.message });
-  }
-}
-
-
-// =======================================================
-// 1) CSV 파서 (쉼표·줄바꿈·따옴표 100% 안전 처리)
-// =======================================================
-function parseCSV(text) {
+// 공통: 정밀 CSV 파서 (따옴표/줄바꿈/쉼표 안전)
+function parseCsvPrecise(text) {
   const rows = [];
-  let cur = [];
+  let row = [];
   let field = "";
   let inside = false;
+
+  // CR 제거
+  text = text.replace(/\r/g, "");
 
   for (let i = 0; i < text.length; i++) {
     const c = text[i];
 
     if (c === '"') {
-      // "" → " 변환
       if (inside && text[i + 1] === '"') {
         field += '"';
         i++;
       } else {
         inside = !inside;
       }
-      continue;
-    }
-
-    if (c === "," && !inside) {
-      cur.push(field);
+    } else if (c === "," && !inside) {
+      row.push(field);
       field = "";
-      continue;
-    }
-
-    if ((c === "\n" || c === "\r") && !inside) {
-      if (field !== "" || cur.length > 0) {
-        cur.push(field);
-        rows.push(convertRow(cur));
-      }
-      cur = [];
+    } else if (c === "\n" && !inside) {
+      row.push(field);
+      rows.push(row);
+      row = [];
       field = "";
-      continue;
+    } else {
+      field += c;
     }
-
-    field += c;
   }
 
-  // 마지막 줄 처리
-  if (field !== "" || cur.length > 0) {
-    cur.push(field);
-    rows.push(convertRow(cur));
-  }
-
+  row.push(field);
+  rows.push(row);
   return rows;
 }
 
-
-// =======================================================
-// 2) CSV → 객체 변환
-//    (스프레드시트 열 번호 그대로 매핑)
-// =======================================================
-function convertRow(c) {
-  const safe = idx => (c[idx] ? clean(c[idx]) : "");
-
-  const ymd = convertToYMD(safe(3)); // 출고일 D열
-
-  return {
-    ymd,
-    date: safe(3),        // D
-    invoice: safe(0),     // A
-    country: safe(4),     // E
-    location: safe(16),   // Q (상차위치)
-    pallet: safe(18),     // S (★ 문제되던 부분 완전 해결)
-    time: safe(19),       // T
-    cbm: safe(11),        // L
-    container: safe(9),   // J
-    work: safe(15),       // P
-    type: safe(10)        // K
-  };
-}
-
-
-// =======================================================
-// 3) 유틸 함수
-// =======================================================
 function clean(str) {
+  if (str == null) return "";
   return String(str)
     .replace(/\uFEFF/g, "")
     .replace(/\r/g, "")
-    .replace(/\n/g, " ")  // 내부 줄바꿈 → 공백
+    .replace(/\n/g, " ")
     .trim();
 }
 
 function convertToYMD(str) {
   if (!str) return 0;
+  let s = String(str).trim().replace(/\s+/g, ""); // 공백 제거 (2025. 12. 1 → 2025.12.1)
+  if (!s) return 0;
 
-  const parts = str.split(".");
-  if (parts.length !== 3) return 0;
+  let y, m, d;
 
-  const y = parts[0];
-  const m = parts[1].padStart(2, "0");
-  const d = parts[2].padStart(2, "0");
+  if (s.includes(".")) {
+    const parts = s.split(".");
+    if (parts.length >= 3) {
+      y = parseInt(parts[0], 10);
+      m = parseInt(parts[1], 10);
+      d = parseInt(parts[2], 10);
+    }
+  } else if (s.includes("-")) {
+    const parts = s.split("-");
+    if (parts.length === 3) {
+      if (parts[0].length === 4) {
+        y = parseInt(parts[0], 10);
+        m = parseInt(parts[1], 10);
+        d = parseInt(parts[2], 10);
+      } else {
+        m = parseInt(parts[0], 10);
+        d = parseInt(parts[1], 10);
+        y = parseInt(parts[2], 10);
+      }
+    }
+  } else if (s.includes("/")) {
+    const parts = s.split("/");
+    if (parts.length === 3) {
+      m = parseInt(parts[0], 10);
+      d = parseInt(parts[1], 10);
+      y = parseInt(parts[2], 10);
+    } else if (parts.length === 2) {
+      const now = new Date();
+      y = now.getFullYear();
+      m = parseInt(parts[0], 10);
+      d = parseInt(parts[1], 10);
+    }
+  } else {
+    const dt = new Date(s);
+    if (!isNaN(dt.getTime())) {
+      y = dt.getFullYear();
+      m = dt.getMonth() + 1;
+      d = dt.getDate();
+    }
+  }
 
-  return Number(`${y}${m}${d}`);
+  if (!y || !m || !d) return 0;
+  return y * 10000 + m * 100 + d;
 }
 
 function getTodayYMD() {
   const d = new Date();
-  return Number(
-    d.getFullYear() +
-    String(d.getMonth() + 1).padStart(2, "0") +
-    String(d.getDate()).padStart(2, "0")
+  return (
+    d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate()
   );
+}
+
+export default async function handler(req, res) {
+  try {
+    const csvRes = await fetch(CSV_URL);
+    if (!csvRes.ok) {
+      throw new Error("CSV 요청 실패: " + csvRes.status);
+    }
+
+    const text = await csvRes.text();
+    const rows = parseCsvPrecise(text);
+    if (rows.length <= 1) {
+      return res.status(200).json({ ok: true, data: [] });
+    }
+
+    const body = rows.slice(1); // 헤더 제거
+    const today = getTodayYMD();
+    const data = [];
+
+    for (const r of body) {
+      if (!r || r.length === 0) continue;
+
+      // === 고정 인덱스 (현재 시트 구조 기준) ===
+      // A: 인보이스+자재코드   → 0
+      // B: 인보이스            → 1
+      // C: 인보이스            → 2
+      // D: 문서번호            → 3
+      // E: 출고일              → 4
+      // F: 국가                → 5
+      // ...
+      // M: 컨테이너            → 12
+      // Q: 작업여부            → 16
+      // R: CBM                 → 17
+      // U: 상차위치            → 20
+      // W: 파레트              → 22
+      // X: 상차시간            → 23
+
+      const dateStr = clean(r[4]);
+      const ymd = convertToYMD(dateStr);
+      if (!ymd) continue;
+
+      // 오늘 포함 + 이후만
+      if (ymd < today) continue;
+
+      const invoice = clean(r[1]);
+      const country = clean(r[5]);
+      const location = clean(r[20]);
+      const pallet = clean(r[22]);
+      const time = clean(r[23]);
+      const cbm = clean(r[17]);
+      const container = clean(r[12]);
+      const work = clean(r[16]);
+      const type = clean(r[11]);
+
+      data.push({
+        ymd,
+        date: dateStr,
+        invoice,
+        country,
+        location,
+        pallet,
+        time,
+        cbm,
+        container,
+        work,
+        type,
+      });
+    }
+
+    return res.status(200).json({ ok: true, data });
+  } catch (err) {
+    console.error("SHIPPING API ERROR:", err);
+    return res.status(500).json({
+      ok: false,
+      msg: err.message || String(err),
+    });
+  }
 }
