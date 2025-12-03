@@ -5,37 +5,47 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>남경 검수시스템 · 홈</title>
   <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    /* 부드러운 카드 hover 효과 */
+    .soft-card {
+      transition: all 0.25s ease;
+    }
+    .soft-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+    }
+  </style>
 </head>
 
 <body class="bg-slate-100 min-h-screen">
-  
-  <!-- 네비게이션 -->
+
+  <!-- ▣ NAV -->
   <script src="nav.js"></script>
 
   <main class="max-w-md mx-auto px-4 pt-5 space-y-6">
 
-    <!-- 🔷 2. 오늘 -->
+    <!-- 오늘 오프닝 -->
     <section class="pt-2">
-      <div class="text-lg font-semibold tracking-tight">
-        출고·입고 작업 현황 ㅣ <span id="visitCount">0</span>
+      <div class="text-xl font-bold tracking-tight text-slate-800 flex items-center gap-2">
+        출고·입고 작업 현황  
+        <span id="visitCount" class="px-2 py-0.5 text-sm rounded-md bg-blue-100 text-blue-700 font-semibold">0</span>
       </div>
-      <div class="text-xs text-slate-500 mt-1">
-        남경 · 실시간 검수 시스템
-      </div>
+      <div class="text-xs text-slate-500 mt-1">남경 · 실시간 검수 시스템</div>
     </section>
 
-    <!-- 🔷 3. 카드 ① : 오늘/내일 출고 -->
-    <section class="bg-white rounded-2xl shadow p-4 space-y-4">
+    <!-- 카드 1 (오늘 / 내일 출고) -->
+    <section class="bg-white rounded-2xl shadow soft-card p-5 space-y-5">
       <div>
-        <div class="text-sm font-semibold text-slate-600 mb-2">오늘 출고</div>
-        <div class="grid grid-cols-2 gap-3 text-center">
-          <div class="p-3 rounded-xl bg-slate-50">
+        <div class="text-sm font-bold text-slate-600 mb-2">오늘 출고</div>
+        <div class="grid grid-cols-2 gap-4 text-center">
+          <div class="p-4 rounded-xl bg-blue-50">
             <div class="text-xs text-slate-500">컨테이너</div>
-            <div class="text-lg font-bold text-slate-700">10대</div>
+            <div class="text-xl font-bold text-slate-800">10대</div>
           </div>
-          <div class="p-3 rounded-xl bg-slate-50">
+          <div class="p-4 rounded-xl bg-indigo-50">
             <div class="text-xs text-slate-500">LCL</div>
-            <div class="text-lg font-bold text-slate-700">10대</div>
+            <div class="text-xl font-bold text-slate-800">10대</div>
           </div>
         </div>
       </div>
@@ -43,79 +53,77 @@
       <div class="border-t"></div>
 
       <div>
-        <div class="text-sm font-semibold text-slate-600 mb-2">내일 출고</div>
-        <div class="grid grid-cols-2 gap-3 text-center">
-          <div class="p-3 rounded-xl bg-slate-50">
+        <div class="text-sm font-bold text-slate-600 mb-2">내일 출고</div>
+        <div class="grid grid-cols-2 gap-4 text-center">
+          <div class="p-4 rounded-xl bg-emerald-50">
             <div class="text-xs text-slate-500">컨테이너</div>
-            <div class="text-lg font-bold text-slate-700">10대</div>
+            <div class="text-xl font-bold text-slate-800">10대</div>
           </div>
-          <div class="p-3 rounded-xl bg-slate-50">
+          <div class="p-4 rounded-xl bg-amber-50">
             <div class="text-xs text-slate-500">LCL</div>
-            <div class="text-lg font-bold text-slate-700">10대</div>
+            <div class="text-xl font-bold text-slate-800">10대</div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- 🔷 4. 카드 ② : 결품/검수 이슈 -->
-    <section class="bg-white rounded-2xl shadow p-4">
-      <div class="text-sm font-semibold text-slate-600 mb-2">결품 / 검수 이슈</div>
+    <!-- 카드 2 (결품/검수이슈) -->
+    <section class="bg-white rounded-2xl shadow soft-card p-5 space-y-2">
+      <div class="text-sm font-bold text-slate-600 mb-2">결품 / 검수 이슈</div>
 
       <div class="flex justify-between text-sm py-1">
-        <div>결품</div>
-        <div class="font-semibold text-slate-700">3건</div>
+        <span class="text-slate-600">결품</span>
+        <span class="font-semibold text-slate-800">3건</span>
       </div>
 
       <div class="flex justify-between text-sm py-1">
-        <div>검수이슈</div>
-        <div class="font-semibold text-slate-700">3건</div>
+        <span class="text-slate-600">검수이슈</span>
+        <span class="font-semibold text-slate-800">3건</span>
       </div>
 
       <div class="flex justify-between text-sm py-1">
-        <div class="text-red-500 font-medium">긴급</div>
-        <div class="text-red-500 font-semibold">3건</div>
+        <span class="text-red-500 font-semibold">긴급</span>
+        <span class="text-red-600 font-bold">3건</span>
       </div>
     </section>
 
-
-    <!-- 🔷 5. 파란 CTA (상차검수) -->
+    <!-- CTA 버튼 -->
     <a href="comingsoon.html"
-       class="block bg-blue-600 text-white text-center font-semibold p-4 rounded-2xl shadow">
+       class="block bg-blue-600 hover:bg-blue-700 transition text-white text-center font-semibold p-4 rounded-2xl shadow soft-card">
       상차검수 시작하기
     </a>
 
-    <!-- 🔷 6. 기존 버튼 3개 다시 표시 -->
+    <!-- 기존 버튼들 -->
     <section class="space-y-3">
-      <a href="index_shipping.html" class="block bg-white p-4 rounded-xl shadow border">
+      <a href="index_shipping.html" class="block bg-white p-4 rounded-xl shadow soft-card border">
         출고정보
       </a>
 
-      <a href="index_defect.html" class="block bg-white p-4 rounded-xl shadow border">
+      <a href="index_defect.html" class="block bg-white p-4 rounded-xl shadow soft-card border">
         결품조회
       </a>
 
-      <a href="index_stock.html" class="block bg-white p-4 rounded-xl shadow border">
+      <a href="index_stock.html" class="block bg-white p-4 rounded-xl shadow soft-card border">
         재고조회
       </a>
     </section>
 
   </main>
 
-  <!-- 🔹 오늘 접속자 카운팅 -->
+  <!-- 방문 카운트 (한국시간 기준) -->
   <script>
-async function updateDailyCounter() {
-  try {
-    const res = await fetch("/api/daily-counter");
-    const json = await res.json();
-    document.getElementById("visitCount").textContent = json.count;
-  } catch (err) {
-    console.error("카운터 오류:", err);
-  }
-}
+    const today = new Date().toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" });
+    const saved = localStorage.getItem("visit_date");
+    let count = Number(localStorage.getItem("visit_count") || 0);
 
-updateDailyCounter();
-</script>
+    if (saved !== today) count = 0;
+    count++;
 
+    localStorage.setItem("visit_date", today);
+    localStorage.setItem("visit_count", count);
+
+    document.getElementById("visitCount").textContent = count;
+  </script>
 
 </body>
 </html>
