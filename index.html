@@ -103,18 +103,19 @@
 
   <!-- 🔹 오늘 접속자 카운팅 -->
   <script>
-    const today = new Date().toISOString().slice(0, 10);
-    const saved = localStorage.getItem("visit_date");
-    let count = Number(localStorage.getItem("visit_count") || 0);
+async function updateDailyCounter() {
+  try {
+    const res = await fetch("/api/daily-counter");
+    const json = await res.json();
+    document.getElementById("visitCount").textContent = json.count;
+  } catch (err) {
+    console.error("카운터 오류:", err);
+  }
+}
 
-    if (saved !== today) count = 0;
-    count++;
+updateDailyCounter();
+</script>
 
-    localStorage.setItem("visit_date", today);
-    localStorage.setItem("visit_count", count);
-
-    document.getElementById("visitCount").textContent = count;
-  </script>
 
 </body>
 </html>
