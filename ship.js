@@ -1,10 +1,9 @@
-// ship.js — 색상 태그 + 필터 유지 + 정렬 + 날짜 변환 + D-1 강조 + hover
+// ship.js — 정렬 강화 + 색상 태그 + 시간 파싱 + D-1 강조 + 필터 유지
 
 const tbody = document.getElementById("shipTableBody");
 const statusTxt = document.getElementById("shipStatus");
 
-// 전체 데이터 저장
-let shipData = [];
+let shipData = []; // 전체 데이터 저장용
 
 // 날짜 포맷 통일: "2025. 12. 3" → "2025-12-03"
 function normalizeDate(str) {
@@ -14,6 +13,53 @@ function normalizeDate(str) {
   if (parts.length !== 3) return str;
   const [y, m, d] = parts;
   return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+}
+
+// 상차시간 통일: "07시30분" → "07:30", "7시" → "07:00"
+function normalizeTime(str) {
+  if (!str) return "";
+
+  str = String(str).trim();
+
+  // "HH:MM" 형태면 그대로
+  if (/^\d{1,2}:\d{1,2}$/.test(str)) {
+    let [h, m] = str.split(":");
+    return `${h.padStart(2, "0")}:${m.padStart(2, "0")}`;
+  }
+
+  // "HH시MM분"
+  if (/^\d{1,2}시\d{1,2}분$/.test(str)) {
+    const h = str.match(/(\d{1,2})시/)?.[1];
+    const m = str.match(/시(\d{1,2})분/)?.[1];
+    return `${h.padStart(2, "0")}:${m.padStart(2, "0")}`;
+  }
+
+  // "HH시"
+  if (/^\d{1,2}시$/.test(str)) {
+    const h = str.replace("시", "");
+    return `${h.padStart(2, "0")}:00`;
+  }
+
+  // "HH시MM"
+  if (/^\d{1,2}시\d{1,2}$/.test(str)) {
+    const h = str.match(/(\d{1,2})시/)?.[1];
+    const m = str.match(/시(\d{1,2})/)?.[1];
+    return `${h.padStart(2, "0")}:${m.padStart(2, "0")}`;
+  }
+
+  // "HH시 MM분" 공백 포함
+  if (/\d시\s*\d+분/.test(str)) {
+    const h = str.match(/(\d{1,2})시/)?.[1];
+    const m = str.match(/시\s*(\d{1,2})분/)?.[1];
+    return `${h.padStart(2, "0")}:${m.padStart(2, "0")}`;
+  }
+
+  // 숫자만 오면 → HH:00
+  if (/^\d{1,2}$/.test(str)) {
+    return `${str.padStart(2, "0")}:00`;
+  }
+
+  return "";
 }
 
 // 유형 색상 태그
@@ -35,7 +81,7 @@ function containerTag(text) {
   return `<span class="px-2 py-1 rounded bg-slate-200 text-slate-700 font-semibold">${text}</span>`;
 }
 
-// 파레트 색상 태그 (마지막 번호 기준)
+// 파레트 색상 태그
 function palletTag(text) {
   const num = parseInt(String(text).replace(/[^0-9]/g, ""));
   if (isNaN(num)) return text;
@@ -61,9 +107,8 @@ function palletTag(text) {
 function isDminus1(dateNorm) {
   const today = new Date();
   const d1 = new Date(dateNorm);
-
   const diff = (d1 - today) / (1000 * 60 * 60 * 24);
-  return Math.floor(diff) === -1; // D-1
+  return Math.floor(diff) === -1;
 }
 
 // ▣ 1) 서버에서 데이터 불러오기
@@ -74,11 +119,12 @@ async function loadData() {
     const res = await fetch("/api/shipping");
     const { ok, data } = await res.json();
 
-    if (!ok) return (statusTxt.textContent = "불러오기 실패");
+    if (!ok) return statusTxt.textContent = "불러오기 실패";
 
     shipData = data.map(row => ({
       ...row,
-      dateNorm: normalizeDate(row.date)
+      dateNorm: normalizeDate(row.date),
+      timeNorm: normalizeTime(row.time)
     }));
 
     renderTable(shipData);
@@ -89,15 +135,34 @@ async function loadData() {
   }
 }
 
-// ▣ 2) 정렬 (날짜 오름차순 → 수출 우선)
+// ▣ 2) 정렬 강화 (날짜 → 유형 → 위치 → 상차시간)
 function sortList(list) {
   return [...list].sort((a, b) => {
+    // 1) 날짜
     const d1 = new Date(a.dateNorm);
     const d2 = new Date(b.dateNorm);
     if (d1 - d2 !== 0) return d1 - d2;
 
-    const priority = { "수출": 1, "배송": 2 };
-    return (priority[a.type] || 99) - (priority[b.type] || 99);
+    // 2) 유형: 수출 → 배송
+    const pt = { "수출": 1, "배송": 2 };
+    const t1 = pt[a.type] || 99;
+    const t2 = pt[b.type] || 99;
+    if (t1 !== t2) return t1 - t2;
+
+    // 3) 위치: A → B → C
+    const loc1 = (a.location || "").toUpperCase();
+    const loc2 = (b.location || "").toUpperCase();
+    if (loc1 < loc2) return -1;
+    if (loc1 > loc2) return 1;
+
+    // 4) 상차시간
+    if (a.timeNorm && b.timeNorm) {
+      const T1 = new Date(`1970-01-01T${a.timeNorm}:00`);
+      const T2 = new Date(`1970-01-01T${b.timeNorm}:00`);
+      return T1 - T2;
+    }
+
+    return 0;
   });
 }
 
@@ -109,10 +174,8 @@ function renderTable(list) {
   sorted.forEach((r, i) => {
     const tr = document.createElement("tr");
 
-    // 행 hover 하이라이트
     tr.classList.add("hover:bg-sky-50", "transition");
 
-    // D-1 강조 (노란 배경)
     if (isDminus1(r.dateNorm)) {
       tr.classList.add("bg-yellow-50");
     } else if (i % 2 === 1) {
@@ -136,7 +199,7 @@ function renderTable(list) {
   });
 }
 
-// ▣ 4) 필터: 출고일 + 인보이스 + 유형
+// ▣ 4) 필터 기능
 document.getElementById("btnSearch")?.addEventListener("click", () => {
   const fDate = document.getElementById("filterDate").value;
   const fInv = document.getElementById("filterInvoice").value.trim();
@@ -153,9 +216,8 @@ document.getElementById("btnSearch")?.addEventListener("click", () => {
   statusTxt.textContent = `${filtered.length}건 표시됨`;
 });
 
-// ▣ 5) 전체 조회 (필터 초기화)
+// ▣ 5) 전체조회 → 필터 초기화
 document.getElementById("btnAll")?.addEventListener("click", () => {
-  // 필터값 리셋
   document.getElementById("filterDate").value = "";
   document.getElementById("filterInvoice").value = "";
   document.getElementById("filterType").value = "";
@@ -164,5 +226,5 @@ document.getElementById("btnAll")?.addEventListener("click", () => {
   statusTxt.textContent = `${shipData.length}건 표시됨`;
 });
 
-// ▣ 최초 실행
+// 최초 실행
 loadData();
