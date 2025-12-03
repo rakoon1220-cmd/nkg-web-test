@@ -1,4 +1,4 @@
-// ship.js — 출고정보 자동로드 + 필터 + 정렬 + 날짜 포맷 변환
+// ship.js — 출고정보 자동로드 + 필터 + 정렬 + 날짜 변환 + 유형 색상 태그
 
 const tbody = document.getElementById("shipTableBody");
 const statusTxt = document.getElementById("shipStatus");
@@ -15,6 +15,17 @@ function normalizeDate(str) {
   return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
 }
 
+// 유형 색상 태그
+function renderTypeTag(type) {
+  if (type === "수출") {
+    return `<span class="px-2 py-1 rounded-lg bg-blue-100 text-blue-700 font-semibold">${type}</span>`;
+  }
+  if (type === "배송") {
+    return `<span class="px-2 py-1 rounded-lg bg-green-100 text-green-700 font-semibold">${type}</span>`;
+  }
+  return `<span class="px-2 py-1 rounded-lg bg-slate-200 text-slate-700 font-semibold">${type}</span>`;
+}
+
 // ▣ 1) 서버에서 데이터 불러오기
 async function loadData() {
   statusTxt.textContent = "불러오는 중...";
@@ -28,7 +39,6 @@ async function loadData() {
       return;
     }
 
-    // 날짜 포맷 통일해서 저장
     shipData = data.map(row => ({
       ...row,
       dateNorm: normalizeDate(row.date)
@@ -65,7 +75,7 @@ function renderTable(list) {
     if (i % 2 === 1) tr.classList.add("bg-slate-50");
 
     tr.innerHTML = `
-      <td class="px-3 py-2 border-b sticky left-0 bg-white z-10">${r.date}</td>
+      <td class="px-3 py-2 border-b">${r.date}</td>
       <td class="px-3 py-2 border-b">${r.invoice}</td>
       <td class="px-3 py-2 border-b">${r.country}</td>
       <td class="px-3 py-2 border-b">${r.location}</td>
@@ -74,21 +84,23 @@ function renderTable(list) {
       <td class="px-3 py-2 border-b">${r.cbm}</td>
       <td class="px-3 py-2 border-b">${r.container}</td>
       <td class="px-3 py-2 border-b">${r.work}</td>
-      <td class="px-3 py-2 border-b font-semibold">${r.type}</td>
+      <td class="px-3 py-2 border-b">${renderTypeTag(r.type)}</td>
     `;
 
     tbody.appendChild(tr);
   });
 }
 
-// ▣ 4) 필터: 출고일 / 인보이스
+// ▣ 4) 필터 (출고일 + 인보이스 + 유형)
 document.getElementById("btnSearch")?.addEventListener("click", () => {
   const fDate = document.getElementById("filterDate").value;
   const fInv = document.getElementById("filterInvoice").value.trim();
+  const fType = document.getElementById("filterType").value;
 
   const filtered = shipData.filter(v => {
     if (fDate && v.dateNorm !== fDate) return false;
     if (fInv && !v.invoice.includes(fInv)) return false;
+    if (fType && v.type !== fType) return false;
     return true;
   });
 

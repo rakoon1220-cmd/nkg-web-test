@@ -42,7 +42,6 @@
     </div>
   </nav>
 
-  <!-- nav spacing -->
   <div class="h-14"></div>
 
   <!-- MAIN -->
@@ -73,6 +72,17 @@
                  class="p-2 border rounded-lg bg-slate-50 focus:ring-2 focus:ring-sky-300">
         </div>
 
+        <!-- 유형 검색 -->
+        <div class="flex flex-col">
+          <span class="font-medium text-slate-600">유형</span>
+          <select id="filterType" 
+                  class="p-2 border rounded-lg bg-slate-50 focus:ring-2 focus:ring-sky-300">
+            <option value="">전체</option>
+            <option value="수출">수출</option>
+            <option value="배송">배송</option>
+          </select>
+        </div>
+
         <!-- 조회 버튼 -->
         <div class="flex flex-col justify-end">
           <button id="btnSearch"
@@ -81,15 +91,14 @@
           </button>
         </div>
 
-        <!-- 전체 조회 -->
-        <div class="flex flex-col justify-end">
-          <button id="btnAll"
-            class="w-full py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-semibold">
-            전체조회
-          </button>
-        </div>
-
       </div>
+
+      <!-- 전체 조회 -->
+      <button id="btnAll"
+        class="w-full py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-semibold">
+        전체조회
+      </button>
+
     </section>
 
     <!-- 상세내역 TABLE -->
@@ -103,7 +112,7 @@
         <table class="min-w-full text-[13px] whitespace-nowrap">
           <thead class="bg-slate-50 border-b border-[#0A1833] text-[#0A1833] sticky top-0 z-20">
             <tr class="nowrap">
-              <th class="px-3 py-2 text-left sticky left-0 bg-white z-30">출고일</th>
+              <th class="px-3 py-2 text-left sticky top-0 bg-white z-30">출고일</th>
               <th class="px-3 py-2 text-left">인보이스</th>
               <th class="px-3 py-2 text-left">국가</th>
               <th class="px-3 py-2 text-left">위치</th>
