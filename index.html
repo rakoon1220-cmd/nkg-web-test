@@ -1,139 +1,235 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>남경 검수시스템 · 홈</title>
+  <meta charset="UTF-8" />
+  <title>남경 검수시스템 · 모바일</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
   <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
-    /* 부드러운 카드 hover 효과 */
-    .soft-card {
-      transition: all 0.25s ease;
-    }
-    .soft-card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 10px 25px rgba(0,0,0,0.08);
-    }
+    body { background: #eef1f5; }
   </style>
 </head>
 
-<body class="bg-slate-100 min-h-screen">
+<body class="flex justify-center">
 
   <!-- ▣ NAV -->
   <script src="nav.js"></script>
 
-  <main class="max-w-md mx-auto px-4 pt-5 space-y-6">
+  <!-- 모바일 앱 프레임 -->
+  <div class="w-full max-w-md min-h-screen bg-[#f8fafc] flex flex-col text-slate-900">
 
-    <!-- 오늘 오프닝 -->
-    <section class="pt-2">
-      <div class="text-xl font-bold tracking-tight text-slate-800 flex items-center gap-2">
-        출고·입고 작업 현황  
-        <span id="visitCount" class="px-2 py-0.5 text-sm rounded-md bg-blue-100 text-blue-700 font-semibold">0</span>
-      </div>
-      <div class="text-xs text-slate-500 mt-1">남경 · 실시간 검수 시스템</div>
-    </section>
+    <!-- 메인 콘텐츠 -->
+    <main class="max-w-md mx-auto px-4 pt-4 pb-10 overflow-y-auto">
 
-    <!-- 카드 1 (오늘 / 내일 출고) -->
-    <section class="bg-white rounded-2xl shadow soft-card p-5 space-y-5">
-      <div>
-        <div class="text-sm font-bold text-slate-600 mb-2">오늘 출고</div>
-        <div class="grid grid-cols-2 gap-4 text-center">
-          <div class="p-4 rounded-xl bg-blue-50">
-            <div class="text-xs text-slate-500">컨테이너</div>
-            <div class="text-xl font-bold text-slate-800">10대</div>
+      <!-- 상단 요약 -->
+      <section class="mb-4">
+        <div class="text-xs text-slate-500 mb-1">오늘</div>
+
+        <div class="flex items-baseline justify-between">
+          <div>
+            <div class="text-lg font-semibold tracking-tight">출고·입고 작업 현황</div>
+            <div class="text-[11px] text-slate-400 mt-0.5">남경 · 실시간 검수</div>
           </div>
-          <div class="p-4 rounded-xl bg-indigo-50">
-            <div class="text-xs text-slate-500">LCL</div>
-            <div class="text-xl font-bold text-slate-800">10대</div>
+
+          <span class="px-2 py-0.5 rounded-full bg-sky-50 text-sky-600 text-[11px] border border-sky-100">
+            대시보드
+          </span>
+        </div>
+      </section>
+
+      <!-- 요약 카드 3개 -->
+      <section class="grid grid-cols-2 gap-2 mb-5">
+
+        <!-- 오늘 출고 -->
+        <a href="comingsoon.html"
+           class="bg-white rounded-2xl border border-slate-100 shadow-sm px-4 py-3 block">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-[11px] text-slate-500">오늘 출고</span>
+            <svg class="w-4 h-4 text-sky-500" fill="none" stroke="currentColor" stroke-width="1.6"
+                 viewBox="0 0 24 24">
+              <path d="M3 7.5L12 3l9 4.5-9 4.5L3 7.5Z" />
+              <path d="M3 7.5V16.5L12 21l9-4.5V7.5" />
+            </svg>
+          </div>
+
+          <div class="flex items-baseline gap-1">
+            <span class="text-xl font-bold">10</span>
+            <span class="text-[11px] text-slate-400">컨테이너</span>
+          </div>
+
+          <div class="text-[11px] text-slate-400 mt-1">
+            LCL <span class="text-rose-500 font-semibold">6 대</span>
+          </div>
+        </a>
+
+        <!-- 내일 출고 -->
+        <a href="comingsoon.html"
+           class="bg-white rounded-2xl border border-slate-100 shadow-sm px-4 py-3 block">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-[11px] text-slate-500">내일 출고</span>
+            <svg class="w-4 h-4 text-sky-500" fill="none" stroke="currentColor" stroke-width="1.6"
+                 viewBox="0 0 24 24">
+              <path d="M3 6h10v9H3V6Z" />
+              <path d="M13 9h4l3 3v3h-3.5" />
+              <circle cx="7" cy="18" r="2" />
+              <circle cx="17" cy="18" r="2" />
+            </svg>
+          </div>
+
+          <div class="flex items-baseline gap-1">
+            <span class="text-xl font-bold">5</span>
+            <span class="text-[11px] text-slate-400">컨테이너</span>
+          </div>
+
+          <div class="text-[11px] text-slate-400 mt-1">
+            LCL <span class="text-sky-600 font-semibold">6 대</span>
+          </div>
+        </a>
+
+        <!-- 결품/검수 이슈 -->
+        <a href="comingsoon.html"
+           class="col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm px-4 py-3 flex justify-between items-center block">
+          <div>
+            <div class="text-[11px] text-slate-500 mb-1">결품 / 검수 이슈</div>
+
+            <div class="flex items-baseline gap-2">
+              <span class="text-xl font-bold text-rose-600">3</span>
+              <span class="text-[11px] text-slate-400">건</span>
+            </div>
+
+            <div class="text-[11px] text-slate-400 mt-1">
+              긴급 <span class="text-rose-500 font-semibold">1건</span> · 일반 2건
+            </div>
+          </div>
+
+          <div class="w-9 h-9 rounded-full bg-rose-50 flex items-center justify-center">
+            <svg class="w-4 h-4 text-rose-500" fill="none" stroke="currentColor" stroke-width="1.6"
+                 viewBox="0 0 24 24">
+              <path d="M12 3 2 19h20L12 3Z"/>
+              <path d="M12 9v4"/>
+              <circle cx="12" cy="16.5" r="0.7"/>
+            </svg>
+          </div>
+        </a>
+
+      </section>
+
+      <!-- 상차검수 시작하기 -->
+      <section class="mb-6">
+        <a href="comingsoon.html"
+           class="w-full bg-sky-500 text-white rounded-2xl px-4 py-3 shadow-md flex items-center justify-between active:scale-[0.99] transition block">
+          <div class="text-left">
+            <div class="text-xs text-sky-50/90">스캔작업</div>
+            <div class="text-sm font-semibold">상차검수 시작하기</div>
+            <div class="text-[11px] text-sky-50/80 mt-0.5">
+              인보이스 검색: <span class="font-semibold">BOX박코드 스캔</span>
+            </div>
+          </div>
+
+          <svg class="w-5 h-5 text-sky-50" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+            <path d="M8 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+      </section>
+
+      <!-- 메뉴 6개 -->
+      <section class="mb-6">
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm divide-y divide-slate-100">
+
+          <!-- 1 입고검수 -->
+          <a href="comingsoon.html" class="px-4 py-2.5 flex justify-between items-center block">
+            <div>
+              <span class="text-xs font-semibold text-slate-800">입고검수 ·</span>
+              <div class="text-[11px] text-slate-400 mt-0.5">스캔 + BOX 검수</div>
+            </div>
+            <span class="px-2 py-0.5 rounded-full border border-rose-200 text-[10px] text-rose-600 font-semibold">
+              comingsoon
+            </span>
+          </a>
+
+          <!-- 2 출고검수 -->
+          <a href="comingsoon.html" class="px-4 py-2.5 flex justify-between items-center block">
+            <div>
+              <span class="text-xs font-semibold text-slate-800">출고검수 ·</span>
+              <div class="text-[11px] text-slate-400 mt-0.5">스캔 + BOX 검수</div>
+            </div>
+            <span class="px-2 py-0.5 rounded-full border border-rose-200 text-[10px] text-rose-600 font-semibold">
+              comingsoon
+            </span>
+          </a>
+
+          <!-- 3 결품조회 -->
+          <a href="index_defect.html" class="px-4 py-2.5 flex justify-between items-center block">
+            <div>
+              <span class="text-xs font-semibold text-slate-800">결품조회 ·</span>
+              <div class="text-[11px] text-slate-400 mt-0.5">INVOICE NO · Sap & Wms</div>
+            </div>
+            <span class="px-2 py-0.5 rounded-full border border-emerald-200 text-[10px] text-emerald-600 font-semibold">
+              진행 중
+            </span>
+          </a>
+
+          <!-- 4 재고조회 -->
+          <a href="index_stock.html" class="px-4 py-2.5 flex justify-between items-center block">
+            <div>
+              <span class="text-xs font-semibold text-slate-800">재고조회</span>
+              <div class="text-[11px] text-slate-400 mt-0.5">제품코드 · 박스번호</div>
+            </div>
+            <span class="px-2 py-0.5 rounded-full border border-emerald-200 text-[10px] text-emerald-600 font-semibold">
+              진행 중
+            </span>
+          </a>
+
+          <!-- 5 출고정보 -->
+          <a href="index_shipping.html" class="px-4 py-2.5 flex justify-between items-center block">
+            <div>
+              <span class="text-xs font-semibold text-slate-800">출고정보 ·</span>
+              <div class="text-[11px] text-slate-400 mt-0.5">날짜 · 인보이스 · 유형</div>
+            </div>
+            <span class="px-2 py-0.5 rounded-full border border-emerald-200 text-[10px] text-emerald-600 font-semibold">
+              진행 중
+            </span>
+          </a>
+
+          <!-- 6 재고조사 -->
+          <a href="comingsoon.html" class="px-4 py-2.5 flex justify-between items-center block">
+            <div>
+              <span class="text-xs font-semibold text-slate-800">재고조사 ·</span>
+              <div class="text-[11px] text-slate-400 mt-0.5">EX · BO · GA · SS</div>
+            </div>
+            <span class="px-2 py-0.5 rounded-full border border-rose-200 text-[10px] text-rose-600 font-semibold">
+              comingsoon
+            </span>
+          </a>
+
+        </div>
+      </section>
+
+      <!-- 알림 -->
+      <section class="mb-10">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-xs font-semibold text-slate-600">알림</span>
+          <button class="text-[11px] text-slate-400">더보기</button>
+        </div>
+
+        <div class="bg-sky-50 border border-sky-100 text-[11px] text-sky-800 rounded-2xl px-3 py-2.5 flex items-start gap-2">
+          <svg class="w-4 h-4 mt-0.5" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 10v6" stroke-linecap="round"/>
+            <circle cx="12" cy="7.5" r="0.7" />
+          </svg>
+
+          <div>
+            <div class="font-semibold mb-0.5">바코드 미등록 건 자동 표시</div>
+            출고검수 화면에서 스캔 시, SAP/WMS 모두 미등록인 바코드는
+            <span class="font-semibold">자동으로 빨간색</span>으로 표시됩니다.
           </div>
         </div>
-      </div>
+      </section>
 
-      <div class="border-t"></div>
+    </main>
 
-      <div>
-        <div class="text-sm font-bold text-slate-600 mb-2">내일 출고</div>
-        <div class="grid grid-cols-2 gap-4 text-center">
-          <div class="p-4 rounded-xl bg-emerald-50">
-            <div class="text-xs text-slate-500">컨테이너</div>
-            <div class="text-xl font-bold text-slate-800">10대</div>
-          </div>
-          <div class="p-4 rounded-xl bg-amber-50">
-            <div class="text-xs text-slate-500">LCL</div>
-            <div class="text-xl font-bold text-slate-800">10대</div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- 카드 2 (결품/검수이슈) -->
-    <section class="bg-white rounded-2xl shadow soft-card p-5 space-y-2">
-      <div class="text-sm font-bold text-slate-600 mb-2">결품 / 검수 이슈</div>
-
-      <div class="flex justify-between text-sm py-1">
-        <span class="text-slate-600">결품</span>
-        <span class="font-semibold text-slate-800">3건</span>
-      </div>
-
-      <div class="flex justify-between text-sm py-1">
-        <span class="text-slate-600">검수이슈</span>
-        <span class="font-semibold text-slate-800">3건</span>
-      </div>
-
-      <div class="flex justify-between text-sm py-1">
-        <span class="text-red-500 font-semibold">긴급</span>
-        <span class="text-red-600 font-bold">3건</span>
-      </div>
-    </section>
-
-   <!-- 2×2 버튼 그리드 -->
-<section class="grid grid-cols-2 gap-3 mt-4">
-
-  <!-- 상차검수 -->
-  <a href="comingsoon.html"
-     class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 rounded-2xl shadow soft-card transition text-center">
-    상차검수
-  </a>
-
-  <!-- 출고정보 -->
-  <a href="index_shipping.html"
-     class="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold py-4 rounded-2xl shadow soft-card transition text-center">
-    출고정보
-  </a>
-
-  <!-- 결품조회 -->
-  <a href="index_defect.html"
-     class="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold py-4 rounded-2xl shadow soft-card transition text-center">
-    결품조회
-  </a>
-
-  <!-- 재고조회 -->
-  <a href="index_stock.html"
-     class="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold py-4 rounded-2xl shadow soft-card transition text-center">
-    재고조회
-  </a>
-
-</section>
-
-
-
-  </main>
-
-  <!-- 방문 카운트 (한국시간 기준) -->
-  <script>
-    const today = new Date().toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" });
-    const saved = localStorage.getItem("visit_date");
-    let count = Number(localStorage.getItem("visit_count") || 0);
-
-    if (saved !== today) count = 0;
-    count++;
-
-    localStorage.setItem("visit_date", today);
-    localStorage.setItem("visit_count", count);
-
-    document.getElementById("visitCount").textContent = count;
-  </script>
-
+  </div>
 </body>
 </html>
