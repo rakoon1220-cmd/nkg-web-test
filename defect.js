@@ -34,7 +34,8 @@ async function searchDefect() {
             return;
         }
 
-        const rows = json.rows;
+        const rows = json.data;
+
 
         if (!rows || rows.length === 0) {
             status.textContent = "오늘 이후 출고 데이터 없음";
