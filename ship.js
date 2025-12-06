@@ -303,43 +303,62 @@ async function loadDetail(invoice) {
       return;
     }
 
-    // 헤더 구성
+    // 헤더
     detailHeader.innerHTML = `
       <tr>
-        <th class="px-3 py-2 text-left">번호</th>
-        <th class="px-3 py-2 text-left">자재코드</th>
-        <th class="px-3 py-2 text-left">박스번호</th>
-        <th class="px-3 py-2 text-left">자재내역</th>
-        <th class="px-3 py-2 text-left">출고</th>
-        <th class="px-3 py-2 text-left">입고</th>
-        <th class="px-3 py-2 text-left">차이</th>
-        <th class="px-3 py-2 text-left">작업</th>
+        <th class="px-3 py-2 text-left whitespace-nowrap">번호</th>
+        <th class="px-3 py-2 text-left whitespace-nowrap">자재코드</th>
+        <th class="px-3 py-2 text-left whitespace-nowrap">박스번호</th>
+        <th class="px-3 py-2 text-left whitespace-nowrap">자재내역</th>
+        <th class="px-3 py-2 text-left whitespace-nowrap">출고</th>
+        <th class="px-3 py-2 text-left whitespace-nowrap">입고</th>
+        <th class="px-3 py-2 text-left whitespace-nowrap">차이</th>
+        <th class="px-3 py-2 text-left whitespace-nowrap">작업</th>
       </tr>
     `;
 
-    // 상세 목록 구성
-    detailBody.innerHTML = data
-      .map(
-        (r, i) => `
-        <tr class="border-b">
-          <td class="px-3 py-2">${i + 1}</td>
-          <td class="px-3 py-2">${r.code}</td>
-          <td class="px-3 py-2">${r.box}</td>
-          <td class="px-3 py-2">${r.name}</td>
-          <td class="px-3 py-2">${r.outQty}</td>
-          <td class="px-3 py-2">${r.inQty}</td>
-          <td class="px-3 py-2 ${
-            r.diff === 0 ? "text-slate-600" : r.diff > 0 ? "text-blue-600" : "text-red-600 font-semibold"
-          }">${r.diff}</td>
-          <td class="px-3 py-2">${r.work || ""}</td>
-        </tr>`
-      )
-      .join("");
+    // 본문 생성
+    detailBody.innerHTML = data.map((r, i) => {
+
+      let diffText = r.diff;
+      let rowColor = "";
+
+      // --------- 조건 처리 ---------
+
+      if (r.outQty === 0) {
+        diffText = "삭제";
+        rowColor = "bg-red-50";
+      } 
+      else if (r.diff === 0) {
+        diffText = "입고 완료";
+        rowColor = "";
+      }
+      else if (r.diff < 0) {
+        rowColor = "bg-blue-50";
+      }
+      else if (r.diff > 0) {
+        rowColor = "bg-green-50";
+      }
+
+      return `
+        <tr class="border-b ${rowColor}">
+          <td class="px-3 py-2 whitespace-nowrap">${i + 1}</td>
+          <td class="px-3 py-2 whitespace-nowrap">${r.code}</td>
+          <td class="px-3 py-2 whitespace-nowrap">${r.box}</td>
+          <td class="px-3 py-2 whitespace-nowrap max-w-[240px] overflow-hidden text-ellipsis">${r.name}</td>
+          <td class="px-3 py-2 whitespace-nowrap">${r.outQty}</td>
+          <td class="px-3 py-2 whitespace-nowrap">${r.inQty}</td>
+          <td class="px-3 py-2 whitespace-nowrap font-semibold">${diffText}</td>
+          <td class="px-3 py-2 whitespace-nowrap">${r.work || ""}</td>
+        </tr>
+      `;
+    }).join("");
 
   } catch (err) {
     detailBody.innerHTML = `<tr><td class="px-3 py-2 text-red-500">서버 오류</td></tr>`;
   }
 }
+
 
 /* ============================================================
    ▣ 최초 실행
