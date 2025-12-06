@@ -1,104 +1,115 @@
-// api/defect.js — Stable Version (멀티라인/날짜/결품 안전판)
-
-const SAP_CSV_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAWmUNAeyndXfdxHjR-1CakW_Tm3OzmMTng5RkB53umXwucqpxABqMMcB0y8H5cHNg7aoHYqFztz0F/pub?gid=221455512&single=true&output=csv";
-
-const WMS_CSV_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAWmUNAeyndXfdxHjR-1CakW_Tm3OzmMTng5RkB53umXwucqpxABqMMcB0y8H5cHNg7aoHYqFztz0F/pub?gid=1850233363&single=true&output=csv";
+// /api/defect.js — Stable Serverless Version (최종본)
 
 export default async function handler(req, res) {
   try {
     const { key } = req.query;
+
     if (!key) {
-      return res.status(400).json({ ok: false, msg: "검색 키(key)가 없습니다." });
+      return res.status(400).json({
+        ok: false,
+        msg: "검색 키(key)가 없습니다. 예: /api/defect?key=775803",
+      });
     }
 
-    const invoiceKey = String(key).trim(); // 인보이스 (B열과 비교)
-    const today = todayYmd();
+    const invoiceKey = String(key).trim();
+    const today = getTodayYMD();
+
+    // SAP / WMS CSV URL
+    const SAP_URL =
+      "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAWmUNAeyndXfdxHjR-1CakW_Tm3OzmMTng5RkB53umXwucqpxABqMMcB0y8H5cHNg7aoHYqFztz0F/pub?gid=221455512&single=true&output=csv";
+
+    const WMS_URL =
+      "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAWmUNAeyndXfdxHjR-1CakW_Tm3OzmMTng5RkB53umXwucqpxABqMMcB0y8H5cHNg7aoHYqFztz0F/pub?gid=1850233363&single=true&output=csv";
 
     // 1) SAP CSV
-    const sapRes = await fetch(SAP_CSV_URL);
-    if (!sapRes.ok) throw new Error("SAP CSV 요청 실패: " + sapRes.status);
-    const sapText = await sapRes.text();
-    const sapRows = parseCSV(sapText);
-    const sapData = sapRows.slice(1); // 헤더 제외
+    const sapResp = await fetch(SAP_URL);
+    if (!sapResp.ok) throw new Error("SAP CSV 요청 실패");
+    const sapText = await sapResp.text();
+    const sapRows = parseCSV(sapText).slice(1);
 
     // 2) WMS CSV
-    const wmsRes = await fetch(WMS_CSV_URL);
-    if (!wmsRes.ok) throw new Error("WMS CSV 요청 실패: " + wmsRes.status);
-    const wmsText = await wmsRes.text();
-    const wmsRows = parseCSV(wmsText);
-    const wmsData = wmsRows.slice(1);
+    const wmsResp = await fetch(WMS_URL);
+    if (!wmsResp.ok) throw new Error("WMS CSV 요청 실패");
+    const wmsText = await wmsResp.text();
+    const wmsRows = parseCSV(wmsText).slice(1);
 
-    // 3) WMS 입고 맵 (A열 keyFull → 수량 합계)
+    // 3) WMS map 생성 (keyFull → 합계수량)
     const wmsMap = new Map();
-    for (const r of wmsData) {
-      if (!r || r.length === 0) continue;
-      const keyFull = clean(r[0]); // 인보이스+자재코드
+    for (const r of wmsRows) {
+      if (!r || r.length < 5) continue;
+      const keyFull = clean(r[0]);
       if (!keyFull) continue;
-      const inQty = toNumber(r[4]); // 수량
-      wmsMap.set(keyFull, (wmsMap.get(keyFull) || 0) + inQty);
+      const qty = toNumber(r[4]);
+      wmsMap.set(keyFull, (wmsMap.get(keyFull) || 0) + qty);
     }
 
-    // 4) SAP + WMS 결품 계산
-    const matched = [];
-    for (const r of sapData) {
-      if (!r || r.length === 0) continue;
+    // 4) SAP + WMS 매칭
+    const result = [];
 
-      const keyFull = clean(r[0]);     // 인보이스+자재코드 (A)
-      const invoice = clean(r[1]);     // 인보이스 (B)
-      const dateStr = clean(r[4]);     // 출고일 (E? 시트 구조상 4)
-      const country = clean(r[5]);     // 국가
-      const material = clean(r[6]);    // 자재코드
-      const desc = clean(r[7]);        // 자재내역
-      const outQty = toNumber(r[8]);   // 출고수량
-      const box = clean(r[9]);         // 박스번호
-      const cntr = clean(r[14]);       // 컨테이너
-      const cbm = toNumber(r[19]);     // CBM
-      const loc = clean(r[22]);        // 상차위치
-      const note = clean(r[23]);       // 특이사항
-      const work = clean(r[18]);       // 작업여부
+    for (const r of sapRows) {
+      if (!r || r.length < 15) continue;
 
-      // 🔍 인보이스로 필터링 (B열 == key)
+      const keyFull = clean(r[0]);  // 인보이스 + 자재코드
+      const invoice = clean(r[1]);  // 인보이스
+      const dateStr = clean(r[4]);  // 출고일
+      const ymd = convertToYMD(dateStr);
+
+      // 인보이스 불일치 skip
       if (invoice !== invoiceKey) continue;
 
-      const parsed = parseYmd(dateStr);
-      if (parsed && parsed.ymd < today) continue; // 오늘 이전 출고 제외
+      // 오늘 이전 출고 제외
+      if (ymd && ymd < today) continue;
 
+      // SAP 필드들
+      const country = clean(r[5]);
+      const material = clean(r[6]);
+      const desc = clean(r[7]);
+      const outQty = toNumber(r[8]);
+      const box = clean(r[9]);
+      const cntr = clean(r[14]);
+      const cbm = toNumber(r[19]);
+      const loc = clean(r[22]);
+      const note = clean(r[23]);
+      const work = clean(r[18]);
+
+      // WMS 입고수량
       const inQty = toNumber(wmsMap.get(keyFull));
       const diff = inQty - outQty;
 
-      matched.push({
+      result.push({
         keyFull,
         invoice,
-        no: matched.length + 1,
-        country,
         date: dateStr,
+        country,
+        material,
+        desc,
+        box,
+        outQty,
+        inQty,
+        diff,
         cntr,
         cbm,
         loc,
         note,
-        material,
-        box,
-        desc,
-        outQty,
-        inQty,
-        diff,
         work,
       });
     }
 
-    return res.status(200).json({ ok: true, rows: matched });
+    return res.status(200).json({
+      ok: true,
+      invoice: invoiceKey,
+      rows: result.length,
+      data: result,
+    });
   } catch (err) {
     console.error("DEFECT API ERROR:", err);
-    return res.status(500).json({
-      ok: false,
-      error: err.message || String(err),
-    });
+    return res.status(500).json({ ok: false, error: err.message });
   }
 }
 
-/* ===================== 공통 유틸 ===================== */
+/* ============================================================
+   공통 유틸
+============================================================ */
 
 function parseCSV(text) {
   text = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
@@ -130,80 +141,43 @@ function parseCSV(text) {
       field += c;
     }
   }
-  if (field !== "" || row.length > 0) {
+
+  if (field || row.length > 0) {
     row.push(field);
     rows.push(row);
   }
+
   return rows;
 }
 
 function clean(str) {
-  if (str == null) return "";
-  return String(str)
+  return String(str || "")
     .replace(/\uFEFF/g, "")
     .replace(/\r/g, "")
     .replace(/\n/g, " ")
     .trim();
 }
 
-function parseYmd(text) {
-  if (!text) return null;
-  let s = String(text).trim().replace(/\s+/g, "");
-
-  let y, m, d;
-
-  if (s.includes(".")) {
-    const parts = s.split(".");
-    if (parts.length >= 3) {
-      y = parseInt(parts[0], 10);
-      m = parseInt(parts[1], 10);
-      d = parseInt(parts[2], 10);
-    }
-  } else if (s.includes("-")) {
-    const parts = s.split("-");
-    if (parts.length === 3) {
-      if (parts[0].length === 4) {
-        y = parseInt(parts[0], 10);
-        m = parseInt(parts[1], 10);
-        d = parseInt(parts[2], 10);
-      } else {
-        m = parseInt(parts[0], 10);
-        d = parseInt(parts[1], 10);
-        y = parseInt(parts[2], 10);
-      }
-    }
-  } else if (s.includes("/")) {
-    const parts = s.split("/");
-    if (parts.length === 3) {
-      m = parseInt(parts[0], 10);
-      d = parseInt(parts[1], 10);
-      y = parseInt(parts[2], 10);
-    } else if (parts.length === 2) {
-      const now = new Date();
-      y = now.getFullYear();
-      m = parseInt(parts[0], 10);
-      d = parseInt(parts[1], 10);
-    }
-  } else {
-    const dt = new Date(s);
-    if (!isNaN(dt.getTime())) {
-      y = dt.getFullYear();
-      m = dt.getMonth() + 1;
-      d = dt.getDate();
-    }
-  }
-
-  if (!y || !m || !d) return null;
-  return { ymd: y * 10000 + m * 100 + d };
-}
-
-function todayYmd() {
-  const n = new Date();
-  return n.getFullYear() * 10000 + (n.getMonth() + 1) * 100 + n.getDate();
-}
-
 function toNumber(v) {
-  if (v == null) return 0;
-  const n = parseFloat(String(v).replace(/,/g, "").trim());
+  const n = parseFloat(String(v || "").replace(/,/g, ""));
   return isNaN(n) ? 0 : n;
+}
+
+function convertToYMD(dateStr) {
+  if (!dateStr) return 0;
+  const s = dateStr.replace(/\s+/g, "");
+  const parts = s.split(".");
+  if (parts.length !== 3) return 0;
+  const y = parts[0];
+  const m = parts[1].padStart(2, "0");
+  const d = parts[2].padStart(2, "0");
+  return Number(`${y}${m}${d}`);
+}
+
+function getTodayYMD() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return Number(`${y}${m}${day}`);
 }

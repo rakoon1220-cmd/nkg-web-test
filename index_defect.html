@@ -13,134 +13,138 @@
 
 <body class="bg-slate-100 min-h-screen flex justify-center">
 
-  <!-- ▣ NAV (홈이랑 동일) -->
+  <!-- NAV -->
   <script src="nav.js"></script>
 
-  <!-- 모바일 프레임 -->
-  <div class="w-full max-w-md min-h-screen bg-[#f8fafc] text-slate-900">
+  <!-- 모바일·PC 프레임 -->
+  <div class="w-full max-w-[1000px] min-h-screen bg-[#f8fafc] text-slate-900">
 
-    <!-- 메인 콘텐츠 -->
-    <main class="max-w-md mx-auto px-4 pt-20 pb-10 space-y-5 overflow-y-auto">
+    <!-- 메인 -->
+    <main class="w-full mx-auto px-4 md:px-8 lg:px-10 pt-20 pb-14 space-y-6 overflow-y-auto">
 
-      <!-- 상단 타이틀 (홈이랑 톤 맞춤) -->
+      <!-- 제목 헤더 -->
       <section class="space-y-1">
-        <div class="text-xs text-slate-500">결품 / 검수 이슈</div>
+        <div class="text-xs md:text-sm text-slate-500">결품 / 검수 이슈</div>
+
         <div class="flex items-baseline justify-between">
           <div>
-            <div class="text-lg font-semibold tracking-tight">결품 조회</div>
-            <div class="text-[11px] text-slate-400 mt-0.5">
+            <div class="text-lg md:text-xl font-semibold tracking-tight">결품 조회</div>
+            <div class="text-[11px] md:text-sm text-slate-400 mt-0.5">
               인보이스 기준 · SAP / WMS 비교
             </div>
           </div>
-          <span class="px-2 py-0.5 rounded-full bg-sky-50 text-sky-600 text-[11px] border border-sky-100">
+
+          <span class="px-2 py-0.5 rounded-full bg-sky-50 text-sky-600 text-[11px] md:text-xs border border-sky-100">
             조회 화면
           </span>
         </div>
       </section>
 
       <!-- 검색 카드 -->
-      <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3">
-        <div class="text-sm font-semibold text-slate-700">조회 키 입력</div>
+      <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 md:p-6 space-y-3">
+
+        <div class="text-sm md:text-base font-semibold text-slate-700">조회 키 입력</div>
 
         <div class="flex flex-col sm:flex-row gap-2">
           <input
             id="keyInput"
             type="text"
-            class="flex-1 px-3 py-3 rounded-xl border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-sky-500"
+            class="flex-1 px-3 py-3 rounded-xl border border-slate-300 text-sm md:text-base outline-none
+                   focus:ring-2 focus:ring-sky-500"
             placeholder="인보이스 입력 (예: 123456 또는 123456789)"
           />
           <button
             id="searchBtn"
-            class="px-4 py-3 rounded-xl bg-sky-500 text-white text-sm font-semibold hover:bg-sky-600 active:bg-sky-700 transition"
+            class="px-4 py-3 rounded-xl bg-sky-500 text-white text-sm md:text-base font-semibold
+                   hover:bg-sky-600 active:bg-sky-700 transition"
           >
             조회
           </button>
         </div>
 
-        <p id="statusText" class="text-[11px] text-slate-500">
+        <p id="statusText" class="text-[11px] md:text-xs text-slate-500">
           인보이스를 입력한 후 [조회]를 눌러주세요.
         </p>
       </section>
 
-      <!-- 출고 요약 카드 (단일 톤 · slate 계열 · 대시보드 완전 통일) -->
-<section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3">
+      <!-- 출고 요약 -->
+      <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 md:p-6 space-y-3">
 
-  <div class="text-sm font-semibold text-slate-700">출고 요약</div>
+        <div class="text-sm md:text-base font-semibold text-slate-700">출고 요약</div>
 
-  <div class="grid grid-cols-2 gap-3 text-[11px]">
+        <!-- 모바일 2열 → PC 3열 -->
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-[11px] md:text-sm">
 
-    <div class="space-y-1">
-      <div class="text-slate-500">국가</div>
-      <div id="sum_country"
-        class="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 font-semibold text-sm text-center">
-        -
-      </div>
-    </div>
+          <div class="space-y-1">
+            <div class="text-slate-500">국가</div>
+            <div id="sum_country"
+              class="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 font-semibold text-center">
+              -
+            </div>
+          </div>
 
-    <div class="space-y-1">
-      <div class="text-slate-500">출고일</div>
-      <div id="sum_date"
-        class="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 font-semibold text-sm text-center">
-        -
-      </div>
-    </div>
+          <div class="space-y-1">
+            <div class="text-slate-500">출고일</div>
+            <div id="sum_date"
+              class="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 font-semibold text-center">
+              -
+            </div>
+          </div>
 
-    <div class="space-y-1">
-      <div class="text-slate-500">컨테이너</div>
-      <div id="sum_cntr"
-        class="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 font-semibold text-sm text-center">
-        -
-      </div>
-    </div>
+          <div class="space-y-1">
+            <div class="text-slate-500">컨테이너</div>
+            <div id="sum_cntr"
+              class="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 font-semibold text-center">
+              -
+            </div>
+          </div>
 
-    <div class="space-y-1">
-      <div class="text-slate-500">CBM</div>
-      <div id="sum_cbm"
-        class="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 font-semibold text-sm text-center">
-        -
-      </div>
-    </div>
+          <div class="space-y-1">
+            <div class="text-slate-500">CBM</div>
+            <div id="sum_cbm"
+              class="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 font-semibold text-center">
+              -
+            </div>
+          </div>
 
-    <div class="space-y-1">
-      <div class="text-slate-500">상차위치</div>
-      <div id="sum_loc"
-        class="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 font-semibold text-sm text-center">
-        -
-      </div>
-    </div>
+          <div class="space-y-1">
+            <div class="text-slate-500">상차위치</div>
+            <div id="sum_loc"
+              class="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 font-semibold text-center">
+              -
+            </div>
+          </div>
 
-    <div class="space-y-1">
-      <div class="text-slate-500">품목수</div>
-      <div id="sum_items"
-        class="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 font-semibold text-sm text-center">
-        -
-      </div>
-    </div>
+          <div class="space-y-1">
+            <div class="text-slate-500">품목수</div>
+            <div id="sum_items"
+              class="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 font-semibold text-center">
+              -
+            </div>
+          </div>
 
-  </div>
-
-  <div class="pt-1">
-    <div class="text-[11px] text-slate-400 mb-1">특이사항</div>
-    <div id="sum_note"
-      class="min-h-[50px] px-3 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 text-xs leading-5">
-      -
-    </div>
-  </div>
-
-</section>
-
-
-
-
-      <!-- 상세내역 (테이블 카드) -->
-      <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div class="px-4 py-3 border-b border-slate-200 text-sm text-slate-800 font-semibold flex items-center justify-between">
-          <span>상세내역</span>
-          <span class="text-[11px] text-slate-400">SAP · WMS 비교 결과</span>
         </div>
 
-        <div class="max-h-[60vh] overflow-auto">
-          <table class="min-w-full text-[12px]">
+        <div class="pt-1">
+          <div class="text-[11px] md:text-xs text-slate-400 mb-1">특이사항</div>
+          <div id="sum_note"
+            class="min-h-[50px] px-3 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 text-xs md:text-sm leading-5">
+            -
+          </div>
+        </div>
+
+      </section>
+
+      <!-- 상세 테이블 -->
+      <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+
+        <div class="px-4 py-3 border-b border-slate-200 text-sm md:text-base text-slate-800 font-semibold flex items-center justify-between">
+          <span>상세내역</span>
+          <span class="text-[11px] md:text-xs text-slate-400">SAP · WMS 비교 결과</span>
+        </div>
+
+        <div class="max-h-[60vh] md:max-h-[70vh] overflow-auto">
+          <table class="min-w-full text-[12px] md:text-sm">
             <thead class="bg-slate-50 border-b border-slate-200 text-slate-700 sticky top-0 z-10">
               <tr class="whitespace-nowrap">
                 <th class="hidden-col">KEY</th>
@@ -154,15 +158,17 @@
                 <th class="px-3 py-2 text-left">작업</th>
               </tr>
             </thead>
+
             <tbody id="defectTable" class="divide-y divide-slate-100"></tbody>
           </table>
         </div>
+
       </section>
 
     </main>
+
   </div>
 
-  <!-- 기존 JS 연결 유지 -->
   <script src="defect.js"></script>
 
 </body>
