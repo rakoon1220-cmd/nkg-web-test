@@ -197,10 +197,12 @@ function renderTable(list) {
       <td class="px-3 py-2 border-b">${r.date}</td>
 
       <!-- 🔥 인보이스 클릭 가능하도록 적용 -->
-      <td class="px-3 py-2 border-b invoice-cell text-blue-600 underline cursor-pointer"
-          data-invoice="${r.invoice}">
-        ${r.invoice}
-      </td>
+      <td class="px-3 py-2 border-b invoice-cell cursor-pointer 
+           text-slate-800 hover:bg-sky-100 transition"
+    data-invoice="${r.invoice}">
+  ${r.invoice}
+</td>
+
 
       <td class="px-3 py-2 border-b">${r.country}</td>
       <td class="px-3 py-2 border-b">${r.location}</td>
@@ -334,7 +336,7 @@ async function loadDetail(invoice) {
         rowColor = "";
       }
       else if (r.diff < 0) {
-        rowColor = "bg-blue-50";
+        rowColor = "bg-yellow-50";
       }
       else if (r.diff > 0) {
         rowColor = "bg-green-50";
