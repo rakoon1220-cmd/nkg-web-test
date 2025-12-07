@@ -2,9 +2,10 @@
    재고조회 클라이언트 → Vercel Functions API
 ------------------------------------------ */
 
+/** 현재 도메인 기준(API_BASE = nkg-web-test.vercel.app 등) */
 const API_BASE = window.location.origin;
-const API_URL_DEFECT = `${API_BASE}/api/defect`;
-
+/** 재고조회 API 엔드포인트 */
+const API_URL_STOCK = `${API_BASE}/api/stock`;
 
 /* 로딩 표시 */
 function showLoading(msg = "조회중...") {
