@@ -10,15 +10,10 @@
     body { background: #eef1f5; }
 
     @keyframes fadeIn {
-      from { opacity:0; transform:translateY(20px) scale(0.95);}
-      to   { opacity:1; transform:translateY(0) scale(1);}
+      from { opacity:0; transform:translateY(20px) scale(0.95); }
+      to   { opacity:1; transform:translateY(0) scale(1); }
     }
     .animate-fadeIn { animation: fadeIn 0.25s ease-out; }
-
-    /* 완료 행 색상 */
-    .row-done {
-      background-color: #fff8d6 !important;
-    }
   </style>
 </head>
 
@@ -139,7 +134,7 @@
         placeholder="바코드를 스캔하세요" autofocus />
     </div>
 
-    <!-- ▣ 최근 스캔 + 누적 + 에러 + 중복 -->
+    <!-- ▣ 최근 스캔 + 누적 + 중복 + 미등록 -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
 
       <!-- 최근 -->
@@ -152,7 +147,7 @@
 
       <!-- 누적 + 퍼센트 -->
       <div class="bg-slate-50 rounded-xl border p-3">
-        <div class="text-xs text-slate-500 mb-1">누적 진행</div>
+        <div class="text-xs text-slate-500 mb-1">누적 진행 (완료 품목)</div>
 
         <div class="flex items-baseline gap-2">
           <span id="progress_now" class="text-2xl font-bold text-slate-800">0</span>
@@ -166,20 +161,20 @@
         </div>
       </div>
 
-      <!-- 에러 -->
-      <div class="bg-slate-50 rounded-xl border p-3">
-        <div class="text-xs text-slate-500 mb-1">에러 / 미등록</div>
-        <div class="flex items-baseline gap-2">
-          <span id="error_count" class="text-2xl font-bold text-red-600">0</span>
-          <span class="text-xs text-slate-400">건</span>
-        </div>
-      </div>
-
       <!-- 중복 -->
       <div class="bg-slate-50 rounded-xl border p-3">
         <div class="text-xs text-slate-500 mb-1">중복 바코드</div>
         <div class="flex items-baseline gap-2">
           <span id="dup_count" class="text-2xl font-bold text-amber-600">0</span>
+          <span class="text-xs text-slate-400">건</span>
+        </div>
+      </div>
+
+      <!-- 미등록 -->
+      <div class="bg-slate-50 rounded-xl border p-3">
+        <div class="text-xs text-slate-500 mb-1">미등록 바코드</div>
+        <div class="flex items-baseline gap-2">
+          <span id="error_count" class="text-2xl font-bold text-red-600">0</span>
           <span class="text-xs text-slate-400">건</span>
         </div>
       </div>
@@ -203,25 +198,24 @@
     <div class="col-span-2 bg-white rounded-xl shadow-sm border flex flex-col">
       <div class="px-4 py-2 border-b border-slate-200 text-[11px] text-slate-500 flex justify-between">
         <span>출고 검수 목록</span>
-        <span>정렬: 자재번호 ↑</span>
+        <span>정렬: 번호 ↑</span>
       </div>
 
       <div class="flex-1 overflow-auto">
         <table class="min-w-full text-xs">
           <thead class="bg-slate-50 sticky top-0 border-b border-slate-200">
-  <tr class="text-slate-500">
-    <th class="px-3 py-2 text-left">번호</th> <!-- ⭐추가 -->
-    <th class="px-3 py-2 text-left">자재번호</th>
-    <th class="px-3 py-2 text-left">박스번호</th>
-    <th class="px-3 py-2 text-left">자재내역</th>
-    <th class="px-3 py-2 text-right">SAP</th>
-    <th class="px-3 py-2 text-right">WMS</th>
-    <th class="px-3 py-2 text-left">단위</th>
-    <th class="px-3 py-2 text-left">바코드</th>
-    <th class="px-3 py-2 text-left">상태</th>
-  </tr>
-</thead>
-
+            <tr class="text-slate-500">
+              <th class="px-3 py-2 text-left whitespace-nowrap">번호</th>
+              <th class="px-3 py-2 text-left whitespace-nowrap">자재번호</th>
+              <th class="px-3 py-2 text-left whitespace-nowrap">박스번호</th>
+              <th class="px-3 py-2 text-left">자재내역</th>
+              <th class="px-3 py-2 text-right whitespace-nowrap">SAP</th>
+              <th class="px-3 py-2 text-right whitespace-nowrap">WMS</th>
+              <th class="px-3 py-2 text-left whitespace-nowrap">단위</th>
+              <th class="px-3 py-2 text-left whitespace-nowrap">바코드</th>
+              <th class="px-3 py-2 text-left whitespace-nowrap">상태</th>
+            </tr>
+          </thead>
 
           <tbody id="scanTableBody" class="divide-y divide-slate-200"></tbody>
         </table>

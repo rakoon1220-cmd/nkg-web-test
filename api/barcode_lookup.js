@@ -1,65 +1,54 @@
+// api/barcode_lookup.js
 import { loadCsv } from "./_csv.js";
 
 const BARCODE_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAWmUNAeyndXfdxHjR-1CakW_Tm3OzmMTng5RkB53umXwucqpxABqMMcB0y8H5cHNg7aoHYqFztz0F/pub?gid=1454119997&single=true&output=csv";
 
-function normalizeRow(r) {
-  const out = {};
-  for (const k of Object.keys(r)) {
-    let v = r[k];
-    if (v == null) v = "";
-    // 줄바꿈 정리
-    v = v.toString().replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-    out[k.trim()] = v.trim();
-  }
-  return out;
-}
+/*
+바코드 CSV 헤더 (요약)
+(빈) (빈) (빈) 자재번호 박스번호 자재내역 바코드 입수량 유통기한 ...
+→ loadCsv 에서는 실제로:
+"자재번호", "박스번호", "자재내역", "바코드", ...
+만 사용
+*/
 
 export default async function handler(req, res) {
-  const codeRaw =
-    (req.query && req.query.code) ||
-    (req.query && req.query.barcode) ||
-    "";
-
-  const code = codeRaw.toString().trim();
+  const { code } = req.query;
 
   if (!code) {
-    return res
-      .status(200)
-      .json({ ok: false, message: "바코드가 없습니다." });
+    return res.status(200).json({ ok: false, message: "바코드가 없습니다." });
   }
 
   try {
-    const rawRows = await loadCsv(BARCODE_URL);
-    const rows = rawRows.map(normalizeRow);
+    const rows = await loadCsv(BARCODE_URL);
 
-    const matches = rows.filter(r => (r["바코드"] || "") === code);
+    const hit = rows.find(
+      r => (r["바코드"] || "").trim() === code.trim()
+    );
 
-    if (matches.length === 0) {
+    if (!hit) {
       return res.status(200).json({
         ok: false,
-        message: `바코드(${code})를 찾을 수 없습니다.`,
+        message: "바코드 목록에 없는 코드입니다.",
       });
     }
 
-    // 첫 매칭만 사용 (같은 바코드 여러 줄은 드문 케이스)
-    const r = matches[0];
-
-    const mat = r["자재번호"] || r["자재코드"] || "";
-    const box = r["박스번호"] || "";
-    const name = r["자재내역"] || r["품명"] || "";
-    const barcode = r["바코드"] || code;
-
     return res.status(200).json({
       ok: true,
-      data: { mat, box, name, barcode },
+      data: {
+        mat: hit["자재번호"] || "",
+        box: hit["박스번호"] || "",
+        name: hit["자재내역"] || "",
+        barcode: hit["바코드"] || "",
+      },
     });
+
   } catch (err) {
-    console.error("BARCODE LOOKUP ERROR:", err);
+    console.error("BARCODE_LOOKUP ERROR:", err);
     return res.status(200).json({
       ok: false,
-      message: "바코드 조회 중 오류",
-      error: err.message || String(err),
+      message: "바코드 조회 오류",
+      error: err.message,
     });
   }
 }
