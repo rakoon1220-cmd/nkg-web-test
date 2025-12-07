@@ -1,39 +1,81 @@
-document.write(`
-  <nav class="bg-[#0A1833] text-white fixed w-full top-0 z-50 shadow">
-    <div class="max-w-6xl mx-auto px-4">
-      <div class="flex justify-between items-center h-14">
+/* ============================================================
+   공통 NAVIGATION BAR (PC + 모바일 햄버거)
+   - 현재 페이지 자동 활성화
+   - 모바일에서는 햄버거 버튼으로 메뉴 표시
+============================================================ */
 
+document.addEventListener("DOMContentLoaded", () => {
+  const path = window.location.pathname;
+  const page = path.split("/").pop();
+
+  // 현재 페이지 활성화 여부
+  const isActive = (file) =>
+    page === file ? "text-sky-300 font-semibold" : "hover:text-sky-300";
+
+  const navHtml = `
+    <nav class="bg-[#0A1833] text-white fixed top-0 w-full z-50 shadow">
+      <div class="max-w-6xl mx-auto px-4 flex justify-between items-center h-14">
+
+        <!-- 로고 -->
         <a href="index.html" class="flex items-center gap-2">
           <div class="w-8 h-8 bg-sky-500 rounded-lg flex items-center justify-center text-xs font-bold">NK</div>
           <span class="font-semibold text-sm tracking-wide">남경 검수시스템</span>
         </a>
 
-        <div class="hidden md:flex gap-6 text-sm">
-          <a href="index.html" class="hover:text-sky-400">메인</a>
-          <a href="index_defect.html" class="hover:text-sky-400">결품조회</a>
-          <a href="index_stock.html" class="hover:text-sky-400">재고조회</a>
-          <a href="index_shipping.html" class="hover:text-sky-400 ">출고정보</a>
+        <!-- PC 메뉴 -->
+        <div class="hidden md:flex items-center gap-4 text-sm">
+          <a href="index.html" class="${isActive("index.html")}">홈</a>
+          <a href="index_shipping.html" class="${isActive("index_shipping.html")}">출고정보</a>
+          <a href="index_defect.html" class="${isActive("index_defect.html")}">결품조회</a>
+          <a href="index_stock.html" class="${isActive("index_stock.html")}">재고조회</a>
+          <a href="scan.html" class="${isActive("scan.html")}">스캔검수</a>
+
+          <button onclick="history.back()"
+            class="text-white px-3 py-1 border border-white/30 rounded-lg text-xs hover:bg-white hover:text-[#0A1833] transition">
+            ← 뒤로
+          </button>
         </div>
 
-        <button id="navToggle" class="md:hidden text-2xl">☰</button>
+        <!-- 모바일 햄버거 버튼 -->
+        <button id="navToggle"
+          class="md:hidden text-white text-2xl focus:outline-none">
+          ☰
+        </button>
+
       </div>
-    </div>
 
-    <div id="mobileMenu" class="hidden md:hidden bg-[#13264C] px-6 py-4 space-y-3 text-sm">
-      <a href="index.html" class="block hover:text-sky-300">메인</a>
-      <a href="index_defect.html" class="block hover:text-sky-300">결품조회</a>
-      <a href="index_stock.html" class="block hover:text-sky-300">재고조회</a>
-      <a href="index_shipping.html" class="block hover:text-sky-300 ">출고정보</a>
-    </div>
-  </nav>
+      <!-- 모바일 메뉴 -->
+      <div id="mobileMenu"
+        class="md:hidden hidden flex-col bg-[#0A1833] text-white px-6 py-3 space-y-3 text-sm border-t border-white/20">
 
-  <div class="h-14"></div>
+        <a href="index.html" class="${isActive("index.html")} block">홈</a>
+        <a href="index_shipping.html" class="${isActive("index_shipping.html")} block">출고정보</a>
+        <a href="index_defect.html" class="${isActive("index_defect.html")} block">결품조회</a>
+        <a href="index_stock.html" class="${isActive("index_stock.html")} block">재고조회</a>
+        <a href="scan.html" class="${isActive("scan.html")} block">스캔검수</a>
 
-  <script>
-    const navToggle = document.getElementById("navToggle");
-    const mobileMenu = document.getElementById("mobileMenu");
-    navToggle?.addEventListener("click", () => {
+        <button onclick="history.back()"
+          class="mt-2 w-full py-2 border border-white/30 rounded-lg text-xs hover:bg-white hover:text-[#0A1833] transition">
+          ← 뒤로
+        </button>
+      </div>
+
+    </nav>
+
+    <div class="h-14"></div>
+  `;
+
+  document.body.insertAdjacentHTML("afterbegin", navHtml);
+
+  /* ===========================
+     햄버거 메뉴 ON/OFF 기능
+  ============================ */
+  const navToggle = document.getElementById("navToggle");
+  const mobileMenu = document.getElementById("mobileMenu");
+
+  if (navToggle) {
+    navToggle.addEventListener("click", () => {
       mobileMenu.classList.toggle("hidden");
     });
-  </script>
-`);
+  }
+});
