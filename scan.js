@@ -162,9 +162,37 @@ invInput.addEventListener("keydown", e => {
 });
 
 /* ------------------------------------------------------------
-   출고 목록 렌더링
-   (색상 규칙 강화)
+   출고 목록 렌더링 (최종 안정판)
+   - 색상 규칙 적용
+   - compare 표시 규칙 최종 적용
+   - 바코드 미등록 표시
 ------------------------------------------------------------ */
+
+// compare 표시 규칙 함수
+function renderCompare(item) {
+  const sap = Number(item.sap);
+  const wms = Number(item.wms);
+  const compare = Number(item.compare);
+
+  // 1) SAP = 0 → compare 빈칸
+  if (sap === 0) {
+    return `<span></span>`;
+  }
+
+  // 2) compare = 0 → 입고완료
+  if (compare === 0) {
+    return `<span class="text-green-600 font-semibold">입고완료</span>`;
+  }
+
+  // 3) compare = SAP → 미입고
+  if (compare === sap) {
+    return `<span class="text-blue-600 font-semibold">미입고</span>`;
+  }
+
+  // 4) 그 외 숫자 표시
+  return `<span>${compare}</span>`;
+}
+
 function renderOutboundTable() {
   scanTableBody.innerHTML = "";
 
@@ -184,7 +212,7 @@ function renderOutboundTable() {
     // 스캔 완료 → 연노랑
     if (item.status === "검수완료") cls += " bg-yellow-50 ";
 
-    // 중복 → 연초록 (우선순위 가장 높음)
+    // 중복 스캔 → 연초록 (우선순위 가장 높음)
     if (item.dup) cls += " bg-emerald-50 ";
 
     // 마지막 스캔 강조
@@ -192,30 +220,25 @@ function renderOutboundTable() {
 
     tr.className = cls.trim();
 
+    // 바코드 미등록 표시
+    const barcodeDisplay = item.barcode
+      ? item.barcode
+      : `<span class="text-red-600 font-semibold">바코드미등록</span>`;
+
     tr.innerHTML = `
       <td class="px-3 py-2 whitespace-nowrap">${item.no}</td>
       <td class="px-3 py-2 whitespace-nowrap">${item.mat}</td>
       <td class="px-3 py-2 whitespace-nowrap">${item.box}</td>
       <td class="px-3 py-2 whitespace-nowrap">${item.name}</td>
+
       <td class="px-3 py-2 text-right whitespace-nowrap">${item.sap}</td>
       <td class="px-3 py-2 text-right whitespace-nowrap">${item.wms}</td>
+
       <td class="px-3 py-2 text-right whitespace-nowrap">
-        ${item.compare}
-        <span class="ml-1 text-xs text-slate-500">
-          ${
-            item.compare === 0
-              ? "입고완료"
-              : item.wms === 0
-              ? "미입고"
-              : item.compare < 0
-              ? "초과입고"
-              : ""
-          }
-        </span>
+        ${renderCompare(item)}
       </td>
-      <td class="px-3 py-2 whitespace-nowrap">
-        ${item.barcode || "<span class='text-red-600'>바코드미등록</span>"}
-      </td>
+
+      <td class="px-3 py-2 whitespace-nowrap">${barcodeDisplay}</td>
       <td class="px-3 py-2 whitespace-nowrap">${item.status}</td>
     `;
 
@@ -224,6 +247,7 @@ function renderOutboundTable() {
 
   progress_total.textContent = `/ ${outboundItems.length} 품목`;
 }
+
 
 /* ------------------------------------------------------------
    스캔 처리
