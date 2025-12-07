@@ -1,10 +1,16 @@
-// public/scan.js
-/* ============================================================
-   출고검수 스캔 - 최종 안정판
-   (요약 + 스캔 + 중복 + 미등록 + 팝업 + 매핑 + 진행률 + 사운드)
-============================================================ */
+/* =====================================================================
+   출고검수 스캔 - 최종 안정판 (소리 + 매핑 + 미등록 상세 + 진행률)
+   2025.12 최신 버전
+===================================================================== */
 
 const IS_FILE = location.protocol === "file:";
+const API_BASE = window.location.origin;
+
+/* ====== 사운드 로드 ====== */
+const sound_ok = new Audio("/sound/ok.wav");
+const sound_dup = new Audio("/sound/dup.wav");
+const sound_err = new Audio("/sound/error.wav");
+const sound_modal = new Audio("/sound/modal.wav");
 
 /* ===== DOM 요소 ===== */
 const invInput = document.getElementById("invInput");
@@ -26,8 +32,9 @@ const recentScanDetail = document.getElementById("recentScanDetail");
 
 const progress_now = document.getElementById("progress_now");
 const progress_total = document.getElementById("progress_total");
-const progress_bar = document.getElementById("progress_bar");
 const progress_percent = document.getElementById("progress_percent");
+const progress_bar = document.getElementById("progress_bar");
+
 const error_count = document.getElementById("error_count");
 const dup_count = document.getElementById("dup_count");
 
@@ -39,41 +46,23 @@ const noticeModal = document.getElementById("noticeModal");
 const noticeText = document.getElementById("noticeText");
 const noticeCloseBtn = document.getElementById("noticeCloseBtn");
 
-/* ===== 사운드 ===== */
-const SOUND_BASE = "/sound";
-
-function makeAudio(src) {
-  const audio = new Audio(src);
-  audio.preload = "auto";
-  return audio;
-}
-
-const soundOk = makeAudio(`${SOUND_BASE}/ok.wav`);
-const soundDup = makeAudio(`${SOUND_BASE}/dup.wav`);
-const soundError = makeAudio(`${SOUND_BASE}/error.wav`);
-const soundModal = makeAudio(`${SOUND_BASE}/modal.wav`);
-
-function playSound(audio) {
-  if (!audio) return;
-  audio.currentTime = 0;
-  audio.play().catch(() => {});
-}
-
-/* ===== 상태 변수 ===== */
 let currentNotice = "";
 let outboundItems = [];
+let barcodeTable = [];
 let scannedCodes = [];
-let duplicateCodes = [];
 let errorCodes = [];
+let duplicateCodes = [];
 let lastScannedBarcode = null;
 
-/* ===== 모달 표시 ===== */
+/* =====================================================================
+   모달 표시
+===================================================================== */
 function showNoticeModal(text) {
   if (!text) return;
   currentNotice = text;
   noticeText.textContent = text;
   noticeModal.classList.remove("hidden");
-  playSound(soundModal);
+  sound_modal.play();
 }
 
 noticeCloseBtn.addEventListener("click", () => {
@@ -81,7 +70,6 @@ noticeCloseBtn.addEventListener("click", () => {
   barcodeInput.focus();
 });
 
-/* ===== 특이사항 버튼 ===== */
 btnNoticeOpen.addEventListener("click", () => {
   if (!currentNotice) {
     alert("특이사항이 없습니다.");
@@ -90,84 +78,63 @@ btnNoticeOpen.addEventListener("click", () => {
   showNoticeModal(currentNotice);
 });
 
-/* ------------------------------------------------------------
-   인보이스 조회 → 상단정보 + 특이사항 + 출고목록 로드
------------------------------------------------------------- */
+/* =====================================================================
+   인보이스 조회 처리
+===================================================================== */
 async function loadInvoice() {
   const inv = invInput.value.trim();
-  if (!inv) {
-    alert("인보이스를 입력하세요.");
-    return;
-  }
+  if (!inv) return alert("인보이스를 입력하세요.");
 
   resetUI();
 
   if (IS_FILE) {
-    // 로컬 file 테스트용
     inv_no.textContent = inv;
-    country.textContent = "테스트국가";
+    country.textContent = "FILE_TEST";
     containerEl.textContent = "40FT";
-    cbm.textContent = "28.5";
-    qty.textContent = "1450";
-    load_time.textContent = "07:30";
-    load_loc.textContent = "A02";
-
-    currentNotice = "테스트 특이사항입니다.\n(실서버에서는 SAP 문서 특이사항이 표시됩니다.)";
+    cbm.textContent = "20";
+    qty.textContent = "1000";
+    load_time.textContent = "07:00";
+    load_loc.textContent = "A01";
+    currentNotice = "테스트 모드 특이사항";
     showNoticeModal(currentNotice);
-
-    // 더미 출고 목록
-    outboundItems = [
-      {
-        no: "1",
-        mat: "2141971",
-        box: "001",
-        name: "테스트 품목1",
-        sap: 10,
-        wms: 10,
-        unit: "BOX",
-        barcode: "TEST001",
-        status: "미검수",
-        scanned: 0,
-      },
-    ];
-    renderOutboundTable();
-    updateProgress();
-    barcodeInput.focus();
     return;
   }
 
   try {
-    // 1) 상단 SAP 문서
-    const res = await fetch(`/api/sap_doc?inv=${encodeURIComponent(inv)}`);
-    if (!res.ok) throw new Error("sap_doc HTTP " + res.status);
-    const json = await res.json();
+    // SAP 문서 + 출고 목록 로드
+    const res_doc = await fetch(`/api/sap_doc?inv=${inv}`);
+    const doc_json = await res_doc.json();
 
-    if (!json.ok) {
-      alert(json.message || "인보이스 정보를 찾을 수 없습니다.");
+    if (!doc_json.ok) {
+      alert(doc_json.message);
       return;
     }
 
-    const row = json.data;
+    const row = doc_json.data;
 
-    inv_no.textContent = row["인보이스"] || "-";
-    country.textContent = row["국가"] || "-";
-    containerEl.textContent = row["컨테이너"] || "-";
-    cbm.textContent = row["CBM"] || "-";
-    qty.textContent = row["출고"] || "-";
-    load_time.textContent = row["상차시간"] || "-";
-    load_loc.textContent = row["상차위치"] || "-";
+    inv_no.textContent = row["인보이스"];
+    country.textContent = row["국가"];
+    containerEl.textContent = row["컨테이너"];
+    cbm.textContent = row["CBM"];
+    qty.textContent = Number(row["출고"]).toLocaleString();
+    load_time.textContent = row["상차시간"];
+    load_loc.textContent = row["상차위치"];
 
-    if (row["특이사항"] && row["특이사항"].trim() !== "") {
-      showNoticeModal(row["특이사항"]);
+    if (row["특이사항"]?.trim()) {
+      let txt = row["특이사항"].replace(/\\n/g, "\n");
+      showNoticeModal(txt);
     }
 
-    // 2) 출고 품목 목록
+    // 출고 검수 목록
     await loadOutboundItems(inv);
+
+    // 바코드 테이블도 로드
+    await loadBarcodeTable();
 
     barcodeInput.focus();
 
   } catch (err) {
-    console.error("LOAD_INVOICE ERROR:", err);
+    console.error(err);
     alert("서버 오류 또는 네트워크 오류");
   }
 }
@@ -177,29 +144,33 @@ invInput.addEventListener("keydown", e => {
   if (e.key === "Enter") loadInvoice();
 });
 
-/* ==================================================
-   출고 검수 목록 로드 (SAP 자재 + WMS 통합)
-================================================== */
+/* =====================================================================
+   바코드 테이블 로드
+===================================================================== */
+async function loadBarcodeTable() {
+  try {
+    const res = await fetch("/api/barcode_table");
+    const json = await res.json();
+    if (json.ok) barcodeTable = json.rows;
+  } catch (err) {
+    console.error("BARCODE LOAD ERR:", err);
+  }
+}
+
+/* =====================================================================
+   출고 검수 목록 로드
+===================================================================== */
 async function loadOutboundItems(inv) {
   try {
-    const res = await fetch(`/api/outbound_items?inv=${encodeURIComponent(inv)}`);
-    if (!res.ok) throw new Error("outbound_items HTTP " + res.status);
+    const res = await fetch(`/api/outbound_items?inv=${inv}`);
     const json = await res.json();
 
     if (!json.ok) {
-      alert(json.message || "출고 품목 목록을 불러오지 못했습니다.");
+      alert("출고 품목 목록을 불러오지 못했습니다.");
       return;
     }
 
-    outboundItems = (json.items || []).map(it => ({
-      ...it,
-      sap: Number(it.sap || 0),
-      wms: Number(it.wms || 0),
-      scanned: Number(it.scanned || 0),
-      status: it.status || "미검수",
-      lastScanType: null, // "ok" | "dup" | "error"
-    }));
-
+    outboundItems = json.items || [];
     renderOutboundTable();
     updateProgress();
 
@@ -209,69 +180,9 @@ async function loadOutboundItems(inv) {
   }
 }
 
-/* ==================================================
-   출고 검수 테이블 렌더링
-================================================== */
-function renderOutboundTable() {
-  scanTableBody.innerHTML = "";
-
-  outboundItems.forEach(item => {
-    const tr = document.createElement("tr");
-
-    // ----- 비교 계산 -----
-    let diffText = "";
-    let diffClass = "";
-
-    const sap = Number(item.sap || 0);
-    const wms = Number(item.wms || 0);
-
-    if (!item.wms && item.wms !== 0) {
-      diffText = "미등록";
-      diffClass = "text-red-600 font-bold";
-    } else if (sap === wms) {
-      diffText = "OK";
-      diffClass = "text-emerald-700 font-bold";
-    } else if (sap > wms) {
-      diffText = `부족 (${sap - wms})`;
-      diffClass = "text-red-600 font-bold";
-    } else if (wms > sap) {
-      diffText = `초과 (${wms - sap})`;
-      diffClass = "text-amber-600 font-bold";
-    }
-
-    // ----- 상태 색상 -----
-    let cls = "";
-    if (item.status === "완료") cls += " bg-yellow-100";
-    if (item.lastScanType === "dup") cls += " bg-emerald-50";
-    if (item.barcode === lastScannedBarcode) cls += " ring-2 ring-amber-400";
-
-    tr.className = cls.trim();
-
-    tr.innerHTML = `
-      <td class="px-3 py-2 whitespace-nowrap">${item.no || "-"}</td>
-      <td class="px-3 py-2 whitespace-nowrap">${item.mat}</td>
-      <td class="px-3 py-2 whitespace-nowrap">${item.box}</td>
-      <td class="px-3 py-2">${item.name}</td>
-      <td class="px-3 py-2 text-right whitespace-nowrap">${item.sap}</td>
-      <td class="px-3 py-2 text-right whitespace-nowrap">${item.wms}</td>
-
-      <!-- ★ 비교 컬럼 추가 -->
-      <td class="px-3 py-2 text-center whitespace-nowrap ${diffClass}">
-        ${diffText}
-      </td>
-
-      <td class="px-3 py-2 whitespace-nowrap">${item.barcode}</td>
-      <td class="px-3 py-2 whitespace-nowrap">${item.status}</td>
-    `;
-
-    scanTableBody.appendChild(tr);
-  });
-}
-
-
-/* ------------------------------------------------------------
-   바코드 스캔 처리
------------------------------------------------------------- */
+/* =====================================================================
+   스캔 처리
+===================================================================== */
 barcodeInput.addEventListener("keydown", e => {
   if (e.key === "Enter") {
     const code = barcodeInput.value.trim();
@@ -280,161 +191,156 @@ barcodeInput.addEventListener("keydown", e => {
   }
 });
 
-async function processScan(code) {
+function processScan(code) {
   if (!code) return;
 
-  const isDupScan = scannedCodes.includes(code);
+  const isDup = scannedCodes.includes(code);
   scannedCodes.push(code);
 
-  const idx = outboundItems.findIndex(it => it.barcode === code);
-  const item = idx >= 0 ? outboundItems[idx] : null;
+  const item = outboundItems.find(it => it.barcode === code);
+  lastScannedBarcode = code;
 
-  // ---- 출고 목록에 없는 바코드 (미등록) ----
+  /* ---------- 미등록 바코드 ---------- */
   if (!item) {
-    errorCodes.push(code);
-
+    duplicateCodes.push(code);
     recentScanStatus.textContent = "미등록";
     recentScanStatus.className = "text-lg font-bold text-red-600";
 
-    // 바코드 CSV에서 추가 정보 조회
-    let detail = `${code} (출고 목록에 없음)`;
-
-    try {
-      if (!IS_FILE) {
-        const res = await fetch(`/api/barcode_lookup?code=${encodeURIComponent(code)}`);
-        if (res.ok) {
-          const json = await res.json();
-          if (json.ok && json.data) {
-            const b = json.data;
-            detail = `${code} (${b.box || "-"}) - ${b.name || "바코드 목록 매칭"}`;
-          }
-        }
-      }
-    } catch (err) {
-      console.error("BARCODE LOOKUP ERROR:", err);
+    const bc = barcodeTable.find(b => b.barcode === code);
+    if (bc) {
+      recentScanDetail.textContent =
+        `${code} / ${bc.name} / 박스 ${bc.box || '-'} (바코드 시트 참조)`;
+    } else {
+      recentScanDetail.textContent = `${code} (바코드 시트에도 없음)`;
     }
 
-    recentScanDetail.textContent = detail;
-    playSound(soundError);
-
+    sound_err.play();
     renderScanList();
     updateProgress();
     return;
   }
 
-  // ---- 출고 목록에 있는 정상/중복 바코드 ----
-  lastScannedBarcode = code;
+  /* ---------- 정상 스캔 ---------- */
+  item.scanned++;
+  const sap = Number(item.sap);
 
-  if (typeof item.scanned !== "number") item.scanned = 0;
-  item.scanned += 1;
+  if (item.scanned < sap) {
+    item.status = "진행중";
+    recentScanStatus.textContent = "정상";
+    recentScanStatus.className = "text-lg font-bold text-green-600";
+    sound_ok.play();
 
-  // 상태: SAP 기준 (완료 / 미검수)
-  if (item.sap > 0 && item.scanned >= item.sap) {
+  } else if (item.scanned === sap) {
     item.status = "완료";
+    recentScanStatus.textContent = "완료";
+    recentScanStatus.className = "text-lg font-bold text-emerald-600";
+    sound_ok.play();
+
   } else {
-    item.status = "미검수";
+    item.status = "초과";
+    recentScanStatus.textContent = "초과";
+    recentScanStatus.className = "text-lg font-bold text-red-600";
+    sound_err.play();
   }
 
-  // 스캔 타입 기록
-  if (isDupScan) {
-    duplicateCodes.push(code);
-    item.lastScanType = "dup";
-
+  if (isDup) {
     recentScanStatus.textContent = "중복";
     recentScanStatus.className = "text-lg font-bold text-amber-600";
-    playSound(soundDup);
-  } else {
-    item.lastScanType = "ok";
-
-    recentScanStatus.textContent = item.status;
-    recentScanStatus.className =
-      item.status === "완료"
-        ? "text-lg font-bold text-emerald-700"
-        : "text-lg font-bold text-green-600";
-    playSound(soundOk);
+    sound_dup.play();
   }
 
   recentScanDetail.textContent =
-    `바코드: ${code} / 박스번호: ${item.box} / ${item.name}`;
-
-  outboundItems[idx] = item;
+    `${code} / ${item.name} / (SAP ${sap}, 스캔 ${item.scanned})`;
 
   renderScanList();
   renderOutboundTable();
   updateProgress();
 }
 
-/* ------------------------------------------------------------
-   스캔 리스트
------------------------------------------------------------- */
+/* =====================================================================
+   스캔된 목록 표시
+===================================================================== */
 function renderScanList() {
-  if (scannedCodes.length === 0 && errorCodes.length === 0) {
-    scanList.innerHTML = `<div class="text-slate-400">아직 스캔 없음…</div>`;
+  if (scannedCodes.length === 0) {
+    scanList.innerHTML = `<div class="text-slate-400">스캔 없음…</div>`;
     return;
   }
 
   scanList.innerHTML = "";
-  const errorSet = new Set(errorCodes);
 
-  scannedCodes.forEach((code, idx) => {
-    const firstIdx = scannedCodes.indexOf(code);
-    const isDup = firstIdx !== idx;
-    const isError = errorSet.has(code);
-
-    let cls = "text-green-700";
-    let label = code;
-
-    if (isError) {
-      cls = "text-red-600";
-      label = `${code} (미등록)`;
-    } else if (isDup) {
-      cls = "text-amber-700";
-      label = `${code} (중복)`;
-    } else {
-      label = `${code} (정상)`;
-    }
-
+  scannedCodes.forEach(code => {
     const item = outboundItems.find(it => it.barcode === code);
+    let html = "";
+
     if (item) {
-      label += ` / ${item.box} / ${item.name}`;
+      html = `<div class="text-green-700">${code} / ${item.box} / ${item.name}</div>`;
+    } else {
+      const bc = barcodeTable.find(b => b.barcode === code);
+      if (bc) {
+        html = `<div class="text-red-600">${code} (미등록) - ${bc.name}</div>`;
+      } else {
+        html = `<div class="text-red-600">${code} (완전 미등록)</div>`;
+      }
     }
 
-    scanList.innerHTML += `<div class="${cls}">${label}</div>`;
+    scanList.innerHTML += html;
   });
 }
 
-/* ------------------------------------------------------------
-   진행률 업데이트 (완료 품목 기준 %)
------------------------------------------------------------- */
-function updateProgress() {
-  const totalScan = scannedCodes.length;
-  const uniqueScan = new Set(scannedCodes).size;
+/* =====================================================================
+   출고 검수 테이블 렌더링
+===================================================================== */
+function renderOutboundTable() {
+  scanTableBody.innerHTML = "";
 
-  dup_count.textContent = totalScan - uniqueScan;
-  error_count.textContent = errorCodes.length;
+  outboundItems.forEach(item => {
+    let cls = "";
 
-  const totalItems = outboundItems.length;
-  let completedItems = 0;
-  if (totalItems > 0) {
-    completedItems = outboundItems.filter(
-      it => it.sap > 0 && it.scanned >= it.sap
-    ).length;
-  }
+    if (item.barcode === lastScannedBarcode) cls += " ring-2 ring-amber-400 ";
+    if (item.status === "완료") cls += " bg-yellow-100 ";
+    if (item.status === "초과") cls += " bg-red-50 text-red-700 ";
 
-  progress_now.textContent = String(completedItems);
-  progress_total.textContent = `/ ${totalItems} 품목`;
+    const tr = document.createElement("tr");
+    tr.className = cls;
 
-  const percent = totalItems > 0
-    ? Math.round((completedItems / totalItems) * 100)
-    : 0;
+    tr.innerHTML = `
+      <td class="px-3 py-2">${item.no}</td>
+      <td class="px-3 py-2">${item.mat}</td>
+      <td class="px-3 py-2">${item.box}</td>
+      <td class="px-3 py-2">${item.name}</td>
+      <td class="px-3 py-2 text-right">${item.sap}</td>
+      <td class="px-3 py-2 text-right">${item.wms}</td>
+      <td class="px-3 py-2">${item.unit}</td>
+      <td class="px-3 py-2">${item.barcode}</td>
+      <td class="px-3 py-2">${item.status}</td>
+    `;
 
-  progress_percent.textContent = `${percent}%`;
-  progress_bar.style.width = `${percent}%`;
+    scanTableBody.appendChild(tr);
+  });
 }
 
-/* ------------------------------------------------------------
+/* =====================================================================
+   진행률 업데이트
+===================================================================== */
+function updateProgress() {
+  const total = outboundItems.length;
+  const completed = outboundItems.filter(it => it.scanned >= it.sap && it.sap > 0).length;
+  const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+  progress_now.textContent = completed;
+  progress_total.textContent = `/ ${total} 품목`;
+  progress_percent.textContent = `${percent}%`;
+  progress_bar.style.width = `${percent}%`;
+
+  const uniqueScan = new Set(scannedCodes).size;
+
+  dup_count.textContent = scannedCodes.length - uniqueScan;
+  error_count.textContent = errorCodes.length;
+}
+
+/* =====================================================================
    초기화
------------------------------------------------------------- */
+===================================================================== */
 function resetUI() {
   inv_no.textContent = "-";
   country.textContent = "-";
@@ -444,14 +350,13 @@ function resetUI() {
   load_time.textContent = "-";
   load_loc.textContent = "-";
 
-  currentNotice = "";
-  outboundItems = [];
   scannedCodes = [];
   duplicateCodes = [];
   errorCodes = [];
   lastScannedBarcode = null;
 
-  scanList.innerHTML = `<div class="text-slate-400">아직 스캔 없음…</div>`;
+  outboundItems = [];
+  scanList.innerHTML = `<div class="text-slate-400">스캔 없음…</div>`;
   scanTableBody.innerHTML = "";
 
   progress_now.textContent = "0";
@@ -459,10 +364,6 @@ function resetUI() {
   progress_percent.textContent = "0%";
   progress_bar.style.width = "0%";
 
-  dup_count.textContent = "0";
-  error_count.textContent = "0";
-
   recentScanStatus.textContent = "-";
-  recentScanStatus.className = "text-lg font-bold text-slate-700";
   recentScanDetail.textContent = "";
 }
