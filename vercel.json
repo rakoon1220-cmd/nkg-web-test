@@ -11,6 +11,8 @@
   "routes": [
     { "src": "/api/(.*)", "dest": "/api/$1.js" },
 
+    { "src": "/sound/(.*)", "dest": "/public/sound/$1" },
+
     { "src": "/", "dest": "/index.html" },
     { "src": "/(.*)", "dest": "/$1" }
   ]
