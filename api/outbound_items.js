@@ -1,92 +1,80 @@
-const { loadCsv } = require("./_csv.js");
+import { loadCsv } from "./_csv.js";
 
-// CSV URL 목록
-const SAP_DOC_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAWmUNAeyndXfdxHjR-1CakW_Tm3OzmMTng5RkB53umXwucqpxABqMMcB0y8H5cHNg7aoHYqFztz0F/pub?gid=1070360000&single=true&output=csv";
-
-const SAP_MAT_URL =
+// SAP 자재자동
+const SAP_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAWmUNAeyndXfdxHjR-1CakW_Tm3OzmMTng5RkB53umXwucqpxABqMMcB0y8H5cHNg7aoHYqFztz0F/pub?gid=221455512&single=true&output=csv";
 
+// WMS 자동
 const WMS_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAWmUNAeyndXfdxHjR-1CakW_Tm3OzmMTng5RkB53umXwucqpxABqMMcB0y8H5cHNg7aoHYqFztz0F/pub?gid=1850233363&single=true&output=csv";
 
+// 바코드 표
 const BARCODE_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAWmUNAeyndXfdxHjR-1CakW_Tm3OzmMTng5RkB53umXwucqpxABqMMcB0y8H5cHNg7aoHYqFztz0F/pub?gid=1454119997&single=true&output=csv";
 
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   const { inv } = req.query;
 
-  if (!inv) {
+  if (!inv)
     return res.status(200).json({ ok: false, message: "인보이스 없음" });
-  }
 
   try {
-    // 1) CSV 파일 모두 로드
-    const [sapDoc, sapMat, wms, barcode] = await Promise.all([
-      loadCsv(SAP_DOC_URL),
-      loadCsv(SAP_MAT_URL),
-      loadCsv(WMS_URL),
-      loadCsv(BARCODE_URL),
-    ]);
+    // ===== CSV LOAD =====
+    const sap = await loadCsv(SAP_URL);
+    const wms = await loadCsv(WMS_URL);
+    const bar = await loadCsv(BARCODE_URL);
 
-    // trim 정리
-    const clean = (rows) =>
-      rows.map((r) => {
-        const out = {};
-        Object.keys(r).forEach((k) => {
-          out[k.trim()] = (r[k] ?? "").toString().trim();
-        });
-        return out;
-      });
+    // ===== SAP 자재자동 → 기준 목록 생성 =====
+    const sapItems = sap
+      .filter(r => r["인보이스"] === inv)
+      .map(r => ({
+        invoice: r["인보이스"],
+        mat: r["자재코드"],
+        name: r["자재내역"],
+        sap: Number(r["출고"] || 0),
+        box: r["박스번호"],
+        unit: r["단위"],
+        no: r["번호"],
 
-    const sapMatRows = clean(sapMat);
-    const wmsRows = clean(wms);
-    const barcodeRows = clean(barcode);
+        // 상단 요약용
+        country: r["국가"],
+        container: r["컨테이너"],
+        cbm: r["CBM"],
+        load_loc: r["상차위치"],
+        load_time: r["상차시간"],
+        notice: r["특이사항"],
 
-    // 2) sap자재자동에서 현재 인보이스만 필터
-    const filtered = sapMatRows.filter(
-      (r) => r["인보이스"] === inv
-    );
-
-    // 3) 결과 구성
-    const items = filtered.map((row) => {
-      const material = row["자재코드"];
-      const box = row["박스번호"];
-
-      // WMS 매칭
-      const wmsRow = wmsRows.find(
-        (w) => w["자재코드"] === material && w["박스번호"] === box
-      );
-
-      // 바코드 매칭 (중복 박스번호 포함 체크)
-      const barRows = barcodeRows.filter(
-        (b) => b["자재코드"] === material
-      );
-
-      // 박스번호 일치하는 것 먼저 탐색
-      let barcodeValue = "-";
-      const exact = barRows.find((b) => b["박스번호"] === box);
-      if (exact) barcodeValue = exact["바코드"];
-      else if (barRows.length > 0) barcodeValue = barRows[0]["바코드"];
-
-      return {
-        no: row["번호"] ?? "",
-        mat: material,
-        box: box,
-        name: row["자재내역"],
-        sap: row["출고"] ?? 0,
-        wms: wmsRow ? wmsRow["수량"] : 0,
-        unit: row["단위"],
-        barcode: barcodeValue,
-        status: "미검수",
+        wms: 0,
+        barcode: "",
         scanned: 0,
-      };
-    });
+        status: "미검수",
+      }));
+
+    // ===== WMS 매핑 =====
+    for (const item of sapItems) {
+      const hit = wms.find(w =>
+        w["인보이스"] === item.invoice &&
+        w["상품코드"] === item.mat &&
+        w["박스번호"] === item.box
+      );
+
+      if (hit) item.wms = Number(hit["수량"] || 0);
+    }
+
+    // ===== 바코드 매핑 =====
+    for (const item of sapItems) {
+      const bc = bar.find(b =>
+        b["자재번호"] === item.mat &&
+        b["박스번호"] === item.box
+      );
+
+      if (bc) item.barcode = bc["바코드"];
+    }
 
     return res.status(200).json({
       ok: true,
-      items,
+      items: sapItems,
     });
 
   } catch (err) {
@@ -94,7 +82,7 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({
       ok: false,
       message: "서버 오류",
-      error: err.message,
+      error: err.message
     });
   }
-};
+}
