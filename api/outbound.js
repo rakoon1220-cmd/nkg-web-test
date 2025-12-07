@@ -1,19 +1,18 @@
-// ▣ 테스트용 출고정보 조회 API
 export default function handler(req, res) {
-  const { inv } = req.query;
-
-  // 테스트용 인보이스
-  if (inv !== "775803") {
+  let { inv } = req.query;
+  
+  if (!inv) {
     return res.status(200).json({
       ok: false,
-      message: "해당 인보이스를 찾을 수 없습니다."
+      message: "인보이스 번호가 전달되지 않았습니다."
     });
   }
 
-  // 테스트 데이터 (UI 확인용)
-  return res.status(200).json({
-    ok: true,
-    data: {
+  inv = inv.trim();  // ★ 공백 제거 필수
+
+  // 테스트용 인보이스 데이터 목록
+  const DB = {
+    "775803": {
       inv: "775803",
       country: "캐나다",
       container: "40FT",
@@ -42,5 +41,20 @@ export default function handler(req, res) {
         }
       ]
     }
+  };
+
+  // 데이터 찾기
+  const data = DB[inv];
+
+  if (!data) {
+    return res.status(200).json({
+      ok: false,
+      message: "해당 인보이스를 찾을 수 없습니다."
+    });
+  }
+
+  return res.status(200).json({
+    ok: true,
+    data
   });
 }
