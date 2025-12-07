@@ -168,31 +168,48 @@ invInput.addEventListener("keydown", e => {
    - 바코드 미등록 표시
 ------------------------------------------------------------ */
 
-// compare 표시 규칙 함수
+/* ------------------------------------------------------------
+   compare 표시 규칙 함수 (최종)
+------------------------------------------------------------ */
 function renderCompare(item) {
   const sap = Number(item.sap);
   const wms = Number(item.wms);
   const compare = Number(item.compare);
 
-  // 1) SAP = 0 → compare 빈칸
+  // SAP = 0 → compare 칸 공백
   if (sap === 0) {
     return `<span></span>`;
   }
 
-  // 2) compare = 0 → 입고완료
+  // compare = 0 → 입고완료 (초록)
   if (compare === 0) {
     return `<span class="text-green-600 font-semibold">입고완료</span>`;
   }
 
-  // 3) compare = SAP → 미입고
+  // compare = SAP → 미입고 (파랑)
   if (compare === sap) {
     return `<span class="text-blue-600 font-semibold">미입고</span>`;
   }
 
-  // 4) 그 외 숫자 표시
+  // compare < 0 → 초과입고 (음수)
+  if (compare < 0) {
+    return `<span class="text-blue-600 font-semibold">초과입고</span>`;
+  }
+
+  // ⭐ 신규 규칙: 0 < compare < SAP → 부분미입고 = 빨강
+  if (compare > 0 && compare < sap) {
+    return `<span class="text-red-600 font-semibold">${compare} (부분미입고)</span>`;
+  }
+
+  // 그 외 숫자 그대로
   return `<span>${compare}</span>`;
 }
 
+
+
+/* ------------------------------------------------------------
+   출고 목록 렌더링 (최종 안정판)
+------------------------------------------------------------ */
 function renderOutboundTable() {
   scanTableBody.innerHTML = "";
 
@@ -201,18 +218,25 @@ function renderOutboundTable() {
 
     let cls = "";
 
-    /* 색상 규칙 */
+    /* 색상 규칙 적용 */
 
-    // SAP 0 → 연빨강
+    // SAP = 0 → 연빨강
     if (Number(item.sap) === 0) cls += " bg-red-100 ";
 
-    // compare 음수 → 연파랑
+    // compare < 0 → 연파랑
     if (Number(item.compare) < 0) cls += " bg-blue-50 ";
+
+    // ⭐ compare > 0 AND compare < SAP → 부분미입고 빨강 배경?
+    // UI 요청은 텍스트만 빨간색인지, 배경도 빨간색인지 확인 필요해서
+    // 일단 텍스트만 빨강, 배경 유지함 (원하면 배경도 넣을게)
+    if (Number(item.compare) > 0 && Number(item.compare) < Number(item.sap)) {
+      cls += " "; // 배경색 없음, 텍스트만 빨강
+    }
 
     // 스캔 완료 → 연노랑
     if (item.status === "검수완료") cls += " bg-yellow-50 ";
 
-    // 중복 스캔 → 연초록 (우선순위 가장 높음)
+    // 중복 스캔 → 연초록 (최우선)
     if (item.dup) cls += " bg-emerald-50 ";
 
     // 마지막 스캔 강조
@@ -247,6 +271,7 @@ function renderOutboundTable() {
 
   progress_total.textContent = `/ ${outboundItems.length} 품목`;
 }
+
 
 
 /* ------------------------------------------------------------
