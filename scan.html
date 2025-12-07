@@ -8,11 +8,17 @@
 
   <style>
     body { background: #eef1f5; }
+
     @keyframes fadeIn {
       from { opacity:0; transform:translateY(20px) scale(0.95);}
       to   { opacity:1; transform:translateY(0) scale(1);}
     }
     .animate-fadeIn { animation: fadeIn 0.25s ease-out; }
+
+    /* 완료 행 색상 */
+    .row-done {
+      background-color: #fff8d6 !important;
+    }
   </style>
 </head>
 
@@ -59,39 +65,69 @@
       <div class="text-sm font-semibold text-slate-600 mb-1">인보이스 조회</div>
 
       <div class="flex items-center gap-2">
-        <!-- 입력창 축소 -->
         <input id="invInput"
           class="w-48 px-3 py-2 text-sm border border-slate-300 rounded-lg
                  focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
           placeholder="인보이스 번호 입력" />
 
-        <!-- 조회 버튼 -->
         <button id="btnLoadInv"
           class="px-4 py-2 text-sm bg-sky-600 hover:bg-sky-700 text-white rounded-lg">
           조회
         </button>
 
-        <!-- 특이사항 버튼 -->
         <button id="btnNoticeOpen"
           class="px-3 py-2 text-sm bg-orange-500 hover:bg-orange-600 text-white rounded-lg">
           특이사항
         </button>
       </div>
-
-      <div class="text-xs text-slate-400 mt-1">
-        인보이스 조회 후 특이사항이 자동 표시되고, 출고 검수 목록이 로드됩니다.
-      </div>
     </div>
 
-    <!-- ▣ 상단 요약 정보 -->
-    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 text-sm">
-      <div><b>인보이스:</b> <span id="inv_no">-</span></div>
-      <div><b>국가:</b> <span id="country">-</span></div>
-      <div><b>컨테이너:</b> <span id="container">-</span></div>
-      <div><b>CBM:</b> <span id="cbm">-</span></div>
-      <div><b>출고수량:</b> <span id="qty">-</span></div>
-      <div><b>상차시간:</b> <span id="load_time">-</span></div>
-      <div><b>상차위치:</b> <span id="load_loc">-</span></div>
+    <!-- ▣ 상단 요약 (2줄 헤더 스타일) -->
+    <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+
+      <!-- 1줄 -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm font-medium text-slate-700">
+        <div>
+          <div class="text-[11px] text-slate-500">인보이스</div>
+          <div id="inv_no" class="text-base font-semibold">-</div>
+        </div>
+
+        <div>
+          <div class="text-[11px] text-slate-500">국가</div>
+          <div id="country" class="text-base font-semibold">-</div>
+        </div>
+
+        <div>
+          <div class="text-[11px] text-slate-500">상차 위치</div>
+          <div id="load_loc" class="text-base font-semibold">-</div>
+        </div>
+
+        <div>
+          <div class="text-[11px] text-slate-500">상차 시간</div>
+          <div id="load_time" class="text-base font-semibold">-</div>
+        </div>
+      </div>
+
+      <div class="border-t border-slate-200"></div>
+
+      <!-- 2줄 -->
+      <div class="grid grid-cols-3 gap-3 text-sm font-medium text-slate-700">
+        <div>
+          <div class="text-[11px] text-slate-500">컨테이너</div>
+          <div id="container" class="text-base font-semibold">-</div>
+        </div>
+
+        <div>
+          <div class="text-[11px] text-slate-500">CBM</div>
+          <div id="cbm" class="text-base font-semibold">-</div>
+        </div>
+
+        <div>
+          <div class="text-[11px] text-slate-500">출고수량(Box)</div>
+          <div id="qty" class="text-base font-semibold">-</div>
+        </div>
+      </div>
+
     </div>
 
     <!-- ▣ 바코드 스캔 -->
@@ -106,20 +142,25 @@
     <!-- ▣ 최근 스캔 + 누적 + 에러 + 중복 -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
 
-      <!-- 최근 스캔 -->
+      <!-- 최근 -->
       <div class="bg-slate-50 rounded-xl border p-3">
         <div class="text-xs text-slate-500 mb-1">최근 스캔 결과</div>
         <div id="recentScanStatus" class="text-lg font-bold text-slate-700">-</div>
-        <div id="recentScanDetail" class="text-[11px] text-slate-400 mt-1 leading-relaxed"></div>
+        <div id="recentScanDetail"
+             class="text-[11px] text-slate-400 mt-1 leading-relaxed"></div>
       </div>
 
-      <!-- 누적 -->
+      <!-- 누적 + 퍼센트 -->
       <div class="bg-slate-50 rounded-xl border p-3">
-        <div class="text-xs text-slate-500 mb-1">누적 진행 (완료 품목 수)</div>
+        <div class="text-xs text-slate-500 mb-1">누적 진행</div>
+
         <div class="flex items-baseline gap-2">
           <span id="progress_now" class="text-2xl font-bold text-slate-800">0</span>
           <span id="progress_total" class="text-xs text-slate-400">/ 0 품목</span>
+          <span id="progress_percent"
+                class="text-sm font-semibold text-emerald-700 ml-2">0%</span>
         </div>
+
         <div class="mt-2 h-1.5 rounded-full bg-slate-200">
           <div id="progress_bar" class="h-full w-0 bg-sky-500"></div>
         </div>
@@ -134,7 +175,7 @@
         </div>
       </div>
 
-      <!-- 중복 바코드 -->
+      <!-- 중복 -->
       <div class="bg-slate-50 rounded-xl border p-3">
         <div class="text-xs text-slate-500 mb-1">중복 바코드</div>
         <div class="flex items-baseline gap-2">
@@ -147,18 +188,18 @@
 
   </section>
 
-  <!-- 📌 하단 목록 -->
+  <!-- 📌 하단: 스캔 목록 + 출고 검수 목록 -->
   <section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-    <!-- LEFT: 스캔된 항목 목록 -->
+    <!-- LEFT -->
     <div class="col-span-1 bg-white rounded-xl shadow-sm border p-4 flex flex-col">
-      <div class="text-xs text-slate-500 mb-2">스캔된 항목 목록</div>
+      <div class="text-xs text-slate-500 mb-2">스캔된 목록</div>
       <div id="scanList" class="flex-1 overflow-auto text-xs text-slate-700 space-y-1">
-        <div class="text-slate-400">아직 스캔된 항목 없음…</div>
+        <div class="text-slate-400">아직 스캔 없음…</div>
       </div>
     </div>
 
-    <!-- RIGHT: 출고 검수 테이블 -->
+    <!-- RIGHT -->
     <div class="col-span-2 bg-white rounded-xl shadow-sm border flex flex-col">
       <div class="px-4 py-2 border-b border-slate-200 text-[11px] text-slate-500 flex justify-between">
         <span>출고 검수 목록</span>
@@ -168,17 +209,20 @@
       <div class="flex-1 overflow-auto">
         <table class="min-w-full text-xs">
           <thead class="bg-slate-50 sticky top-0 border-b border-slate-200">
-            <tr class="text-slate-500">
-              <th class="px-3 py-2 text-left">자재번호</th>
-              <th class="px-3 py-2 text-left">박스번호</th>
-              <th class="px-3 py-2 text-left">자재내역</th>
-              <th class="px-3 py-2 text-right">SAP</th>
-              <th class="px-3 py-2 text-right">WMS</th>
-              <th class="px-3 py-2 text-left">단위</th>
-              <th class="px-3 py-2 text-left">바코드</th>
-              <th class="px-3 py-2 text-left">상태</th>
-            </tr>
-          </thead>
+  <tr class="text-slate-500">
+    <th class="px-3 py-2 text-left">번호</th> <!-- ⭐추가 -->
+    <th class="px-3 py-2 text-left">자재번호</th>
+    <th class="px-3 py-2 text-left">박스번호</th>
+    <th class="px-3 py-2 text-left">자재내역</th>
+    <th class="px-3 py-2 text-right">SAP</th>
+    <th class="px-3 py-2 text-right">WMS</th>
+    <th class="px-3 py-2 text-left">단위</th>
+    <th class="px-3 py-2 text-left">바코드</th>
+    <th class="px-3 py-2 text-left">상태</th>
+  </tr>
+</thead>
+
+
           <tbody id="scanTableBody" class="divide-y divide-slate-200"></tbody>
         </table>
       </div>
@@ -188,7 +232,7 @@
 
 </main>
 
-<!-- ===== 특이사항 모달 (대형 버전) ===== -->
+<!-- ===== 특이사항 모달 ===== -->
 <div id="noticeModal"
      class="fixed inset-0 bg-black/60 hidden flex justify-center items-center z-[9999]">
   <div class="bg-white rounded-2xl p-8 w-[90%] max-w-[560px] shadow-2xl animate-fadeIn">
