@@ -5,7 +5,8 @@
 ============================================================ */
 
 // ★ API URL (테스트용, 필요 시 수정)
-const API_INV_URL = "https://nkg-web-ptu8.vercel.app/api/outbound";  
+const API_INV_URL = "https://nkg-web-test.vercel.app/api/outbound";
+  
 // 조회: GET /api/outbound?inv=775803
 
 // DOM 요소 모음
