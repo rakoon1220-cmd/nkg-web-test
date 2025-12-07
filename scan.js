@@ -218,19 +218,32 @@ function renderOutboundTable() {
   outboundItems.forEach(item => {
     const tr = document.createElement("tr");
 
+    // ----- 비교 계산 -----
+    let diffText = "";
+    let diffClass = "";
+
+    const sap = Number(item.sap || 0);
+    const wms = Number(item.wms || 0);
+
+    if (!item.wms && item.wms !== 0) {
+      diffText = "미등록";
+      diffClass = "text-red-600 font-bold";
+    } else if (sap === wms) {
+      diffText = "OK";
+      diffClass = "text-emerald-700 font-bold";
+    } else if (sap > wms) {
+      diffText = `부족 (${sap - wms})`;
+      diffClass = "text-red-600 font-bold";
+    } else if (wms > sap) {
+      diffText = `초과 (${wms - sap})`;
+      diffClass = "text-amber-600 font-bold";
+    }
+
+    // ----- 상태 색상 -----
     let cls = "";
-
-    if (item.status === "완료") {
-      cls += " bg-yellow-100";
-    }
-
-    if (item.lastScanType === "dup") {
-      cls = " bg-emerald-50"; // 중복 스캔 강조
-    }
-
-    if (item.barcode === lastScannedBarcode) {
-      cls += " ring-2 ring-amber-400";
-    }
+    if (item.status === "완료") cls += " bg-yellow-100";
+    if (item.lastScanType === "dup") cls += " bg-emerald-50";
+    if (item.barcode === lastScannedBarcode) cls += " ring-2 ring-amber-400";
 
     tr.className = cls.trim();
 
@@ -241,7 +254,12 @@ function renderOutboundTable() {
       <td class="px-3 py-2">${item.name}</td>
       <td class="px-3 py-2 text-right whitespace-nowrap">${item.sap}</td>
       <td class="px-3 py-2 text-right whitespace-nowrap">${item.wms}</td>
-      <td class="px-3 py-2 whitespace-nowrap">${item.unit}</td>
+
+      <!-- ★ 비교 컬럼 추가 -->
+      <td class="px-3 py-2 text-center whitespace-nowrap ${diffClass}">
+        ${diffText}
+      </td>
+
       <td class="px-3 py-2 whitespace-nowrap">${item.barcode}</td>
       <td class="px-3 py-2 whitespace-nowrap">${item.status}</td>
     `;
@@ -249,6 +267,7 @@ function renderOutboundTable() {
     scanTableBody.appendChild(tr);
   });
 }
+
 
 /* ------------------------------------------------------------
    바코드 스캔 처리
