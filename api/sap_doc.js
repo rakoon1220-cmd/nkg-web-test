@@ -1,12 +1,27 @@
-// /api/sap_doc.js
 import { loadCsv } from "./_csv.js";
 
-// sap문서 상단
-const CSV_URL =
+const SAP_DOC_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAWmUNAeyndXfdxHjR-1CakW_Tm3OzmMTng5RkB53umXwucqpxABqMMcB0y8H5cHNg7aoHYqFztz0F/pub?gid=1070360000&single=true&output=csv";
 
+function normalizeRow(r) {
+  const out = {};
+  for (const k of Object.keys(r)) {
+    let v = r[k];
+    if (v == null) v = "";
+    // 줄바꿈 복원
+    v = v.toString().replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    out[k.trim()] = v.trim();
+  }
+  return out;
+}
+
 export default async function handler(req, res) {
-  const { inv } = req.query;
+  const invRaw =
+    (req.query && req.query.inv) ||
+    (req.query && req.query.invoice) ||
+    "";
+
+  const inv = invRaw.toString().trim();
 
   if (!inv) {
     return res
@@ -15,31 +30,24 @@ export default async function handler(req, res) {
   }
 
   try {
-    let rows = await loadCsv(CSV_URL);
+    const rawRows = await loadCsv(SAP_DOC_URL);
+    const rows = rawRows.map(normalizeRow);
 
-    // 키 / 값 공백 제거
-    rows = rows.map((r) => {
-      const cleaned = {};
-      Object.keys(r).forEach((k) => {
-        cleaned[k.trim()] = (r[k] ?? "").toString().trim();
-      });
-      return cleaned;
-    });
+    const keys = ["인보이스", "문서번호", "Invoice", "invoice"];
 
-    const targets = ["인보이스", "Invoice", "invoice", "문서번호"];
+    let found = null;
 
-    let row = null;
     for (const r of rows) {
-      for (const key of targets) {
-        if (r[key] && r[key] === inv.trim()) {
-          row = r;
+      for (const k of keys) {
+        if (r[k] && r[k].toString().trim() === inv) {
+          found = r;
           break;
         }
       }
-      if (row) break;
+      if (found) break;
     }
 
-    if (!row) {
+    if (!found) {
       return res.status(200).json({
         ok: false,
         message: `인보이스(${inv})를 찾을 수 없습니다.`,
@@ -48,14 +56,15 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       ok: true,
-      data: row,
+      data: found,
     });
   } catch (err) {
     console.error("SAP_DOC ERROR:", err);
     return res.status(200).json({
       ok: false,
-      message: "서버 오류가 발생했습니다.",
-      error: err.message,
+      message: "상단 인보이스 정보 로딩 중 오류",
+      error: err.message || String(err),
     });
   }
 }
+
