@@ -1,36 +1,6 @@
-// Vercel의 Serverless 환경 기반 - fetch 내장됨
-// CSV 안전 파서 (콤마 포함 문자열까지 지원)
+// Vercel 환경: fetch 내장, node-fetch 금지
 
-export async function loadCsv(url) {
-  try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error("CSV 로딩 실패: " + res.status);
-
-    const text = await res.text();
-    const lines = text.trim().split(/\r?\n/);
-
-    const header = safeSplit(lines.shift()); // 첫 줄 = 헤더
-    const rows = [];
-
-    for (const line of lines) {
-      const cols = safeSplit(line);
-      const obj = {};
-
-      header.forEach((h, i) => {
-        obj[h.trim()] = (cols[i] ?? "").trim();
-      });
-
-      rows.push(obj);
-    }
-
-    return rows;
-  } catch (err) {
-    console.error("CSV LOAD ERROR:", err);
-    throw new Error("CSV 파싱 오류: " + err.message);
-  }
-}
-
-// 콤마와 큰따옴표 처리
+// CSV 한 줄을 안전하게 콤마 분리 (따옴표 안의 콤마는 유지)
 function safeSplit(str) {
   const result = [];
   let current = "";
@@ -40,7 +10,13 @@ function safeSplit(str) {
     const ch = str[i];
 
     if (ch === '"') {
-      inQuotes = !inQuotes;
+      // "" → " 로 처리
+      if (inQuotes && str[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
       continue;
     }
 
@@ -54,4 +30,81 @@ function safeSplit(str) {
 
   result.push(current);
   return result;
+}
+
+// 전체 CSV 텍스트를 "줄"로 나눌 때도 따옴표 안의 줄바꿈은 유지
+function splitCsvRecords(text) {
+  const records = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+
+    if (ch === '"') {
+      // "" → " 처리
+      if (inQuotes && text[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if ((ch === "\n" || ch === "\r") && !inQuotes) {
+      // 개행 분리 (CRLF, LF 모두 대응)
+      // \r\n 같이 붙어있으면 한번에 처리
+      if (ch === "\r" && text[i + 1] === "\n") {
+        i++;
+      }
+      records.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+
+  if (current !== "") {
+    records.push(current);
+  }
+
+  return records.filter(r => r !== "");
+}
+
+// 공통 CSV 로더
+export async function loadCsv(url) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error("CSV 로딩 실패: " + res.status);
+    }
+
+    const text = await res.text();
+
+    const records = splitCsvRecords(text);
+    if (records.length === 0) return [];
+
+    const header = safeSplit(records.shift());
+    const rows = [];
+
+    for (const record of records) {
+      if (!record) continue;
+      const cols = safeSplit(record);
+      const obj = {};
+
+      header.forEach((h, i) => {
+        const key = (h || "").toString().trim();
+        const val = (cols[i] ?? "").toString().trim();
+        obj[key] = val;
+      });
+
+      rows.push(obj);
+    }
+
+    return rows;
+  } catch (err) {
+    console.error("CSV LOAD ERROR:", err);
+    throw new Error("CSV 파싱 오류: " + err.message);
+  }
 }

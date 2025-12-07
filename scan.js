@@ -1,10 +1,41 @@
 /* ============================================================
    출고검수 스캔 - 최종 안정판
-   (요약 + 스캔 + 중복 + 팝업 + 매핑 + 진행률% + 바코드 상세)
+   (요약 + 스캔 + 중복 + 팝업 + 매핑 + 진행률% + 바코드 상세 + 사운드)
 ============================================================ */
 
 const IS_FILE = location.protocol === "file:";
 const API_BASE = window.location.origin;
+
+/* ===== 사운드 경로 설정 =====
+   - 배포:  /sound/ok.wav ...
+   - 로컬(file): ./public/sound/ok.wav ...
+============================================================ */
+const SOUND_BASE = IS_FILE ? "./public/sound" : "/sound";
+
+function makeAudio(src) {
+  try {
+    const a = new Audio(src);
+    return a;
+  } catch (e) {
+    console.warn("AUDIO INIT FAIL:", src, e);
+    return null;
+  }
+}
+
+const soundOk = makeAudio(`${SOUND_BASE}/ok.wav`);
+const soundDup = makeAudio(`${SOUND_BASE}/dup.wav`);
+const soundError = makeAudio(`${SOUND_BASE}/error.wav`);
+const soundModal = makeAudio(`${SOUND_BASE}/modal.wav`);
+
+function playSound(a) {
+  if (!a) return;
+  try {
+    a.currentTime = 0;
+    a.play();
+  } catch (e) {
+    console.warn("AUDIO PLAY FAIL:", e);
+  }
+}
 
 /* ===== DOM 요소 ===== */
 const invInput = document.getElementById("invInput");
@@ -64,6 +95,8 @@ function showNoticeModal(text) {
   currentNotice = text;
   noticeText.textContent = text;
   noticeModal.classList.remove("hidden");
+  // 특이사항 팝업 사운드
+  playSound(soundModal);
 }
 
 noticeCloseBtn.addEventListener("click", () => {
@@ -89,7 +122,7 @@ async function lookupBarcodeMeta(code) {
   }
 
   if (IS_FILE) {
-    // 로컬 file 모드에서는 바코드 API 호출 X
+    // 로컬 file 모드에서는 API 호출 X
     barcodeMetaCache[code] = null;
     return null;
   }
@@ -156,16 +189,28 @@ async function loadInvoice() {
     cbm.textContent = row["CBM"] || "-";
     qty.textContent = row["출고"] || "-";
 
-    // 상차시간 헤더가 여러 형태일 수 있음: "상차시간", "상차 시간"
-    load_time.textContent =
+    // 상차시간 컬럼명이 애매할 수 있어서 여러 패턴 지원
+    let lt =
       row["상차시간"] ||
       row["상차 시간"] ||
       row["상차"] ||
-      "-";
+      "";
+
+    if (!lt) {
+      // 키에 "상차" 포함된 컬럼 자동 검색
+      for (const k of Object.keys(row)) {
+        const kk = k.replace(/\s+/g, "");
+        if (kk.includes("상차") && kk.includes("시간")) {
+          lt = row[k];
+          break;
+        }
+      }
+    }
+    load_time.textContent = lt || "-";
 
     load_loc.textContent = row["상차위치"] || "-";
 
-    // 특이사항 자동 팝업
+    // 특이사항 자동 팝업 (여러 줄 그대로 표시)
     const noticeRaw = row["특이사항"] || "";
     if (noticeRaw.trim()) {
       currentNotice = noticeRaw;
@@ -223,7 +268,7 @@ async function loadOutboundItems(inv) {
    - 번호 오름차순
    - 상태별 색상
    - 중복 스캔된 바코드 → 연한 초록색
-   - 마지막 스캔 → 테두리
+   - 마지막 스캔 → 테두리 강조
 ------------------------------------------------------------ */
 function renderOutboundTable() {
   scanTableBody.innerHTML = "";
@@ -313,7 +358,7 @@ async function processScan(code) {
           (it.box || "").trim() === boxKey
       );
 
-      // (2) 자재번호만 일치하는 경우 (박스번호 빈 경우)
+      // (2) 자재번호만 일치 (박스번호가 비어있거나 관리 안 하는 경우)
       if (!targetItem) {
         targetItem = outboundItems.find(
           it => (it.mat || "").trim() === matKey
@@ -344,6 +389,8 @@ async function processScan(code) {
         `바코드: ${code} (바코드 시트에도 없음)`;
     }
 
+    playSound(soundError);
+
     renderScanList();
     updateProgress();
     return;
@@ -369,16 +416,19 @@ async function processScan(code) {
     targetItem.status = "초과";
   }
 
-  // 최근 스캔 표시
+  // 최근 스캔 표시 + 사운드
   if (!isDupScan && targetItem.status !== "초과") {
     recentScanStatus.textContent = "정상";
     recentScanStatus.className = "text-lg font-bold text-green-600";
+    playSound(soundOk);
   } else if (targetItem.status === "초과") {
     recentScanStatus.textContent = "초과";
     recentScanStatus.className = "text-lg font-bold text-red-600";
+    playSound(soundError);
   } else {
     recentScanStatus.textContent = "중복";
     recentScanStatus.className = "text-lg font-bold text-amber-600";
+    playSound(soundDup);
   }
 
   recentScanDetail.textContent =
@@ -433,21 +483,32 @@ function renderScanList() {
 
 /* ------------------------------------------------------------
    진행률 업데이트
-   - 완료 품목 기준 %
+   - 총 SAP 수량 대비 스캔 수량 비율(%)
+   - 상단 "누적 진행" 숫자는 스캔 Box 합계
    - 중복 / 미등록 카운트
 ------------------------------------------------------------ */
 function updateProgress() {
-  const totalItems = outboundItems.length;
+  // 총 SAP 수량, 총 스캔 수량(초과분은 SAP까지로 cap)
+  let totalSap = 0;
+  let totalScanned = 0;
 
-  const completedItems = outboundItems.filter(
-    it => it.sap > 0 && it.scanned >= it.sap
-  ).length;
+  outboundItems.forEach(it => {
+    const sap = Number(it.sap || 0);
+    const scanned = Number(it.scanned || 0);
 
-  progress_now.textContent = String(completedItems);
-  progress_total.textContent = `/ ${totalItems} 품목`;
+    if (sap > 0) {
+      totalSap += sap;
+      totalScanned += Math.min(scanned, sap);
+    }
+  });
 
-  const percent = totalItems > 0
-    ? Math.round((completedItems / totalItems) * 100)
+  progress_now.textContent = String(totalScanned);
+  progress_total.textContent = totalSap > 0
+    ? `/ ${totalSap} Box`
+    : "/ 0 Box";
+
+  const percent = totalSap > 0
+    ? Math.round((totalScanned / totalSap) * 100)
     : 0;
 
   progress_percent.textContent = `${percent}%`;
@@ -482,7 +543,7 @@ function resetUI() {
   scanTableBody.innerHTML = "";
 
   progress_now.textContent = "0";
-  progress_total.textContent = "/ 0 품목";
+  progress_total.textContent = "/ 0 Box";
   progress_percent.textContent = "0%";
   progress_bar.style.width = "0%";
 
@@ -493,4 +554,3 @@ function resetUI() {
   recentScanStatus.className = "text-lg font-bold text-slate-700";
   recentScanDetail.textContent = "";
 }
-

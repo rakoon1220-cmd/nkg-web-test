@@ -8,6 +8,7 @@ function normalizeRow(r) {
   for (const k of Object.keys(r)) {
     let v = r[k];
     if (v == null) v = "";
+    // 줄바꿈 정리
     v = v.toString().replace(/\r\n/g, "\n").replace(/\r/g, "\n");
     out[k.trim()] = v.trim();
   }
@@ -41,7 +42,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // 일단 첫 번째 매칭만 사용 (동일 바코드 다수는 드문 케이스)
+    // 첫 매칭만 사용 (같은 바코드 여러 줄은 드문 케이스)
     const r = matches[0];
 
     const mat = r["자재번호"] || r["자재코드"] || "";
