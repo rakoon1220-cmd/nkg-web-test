@@ -2,7 +2,9 @@
    결품조회 (클라이언트) → Vercel Functions API
 ------------------------------------------ */
 
-const API_URL_DEFECT = "https://nkg-web-ptu8.vercel.app/api/defect";
+const API_BASE = window.location.origin;
+const API_URL_DEFECT = `${API_BASE}/api/defect`;
+
 
 /* 로딩 표시 */
 function showLoading(msg = "조회중...") {
