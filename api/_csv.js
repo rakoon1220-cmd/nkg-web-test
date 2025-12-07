@@ -1,41 +1,36 @@
-// CSV 로더 - fetch는 Vercel Node API 환경에서 기본 제공됨
+// Vercel의 Serverless 환경 기반 - fetch 내장됨
+// CSV 안전 파서 (콤마 포함 문자열까지 지원)
 
-async function loadCsv(url) {
+export async function loadCsv(url) {
   try {
     const res = await fetch(url);
-    if (!res.ok) {
-      throw new Error("CSV 로딩 실패: " + res.status);
-    }
+    if (!res.ok) throw new Error("CSV 로딩 실패: " + res.status);
 
     const text = await res.text();
-
-    // 줄 분리
     const lines = text.trim().split(/\r?\n/);
 
-    // 헤더
-    const header = safeSplit(lines.shift());
-
-    let rows = [];
+    const header = safeSplit(lines.shift()); // 첫 줄 = 헤더
+    const rows = [];
 
     for (const line of lines) {
       const cols = safeSplit(line);
-      const row = {};
+      const obj = {};
 
-      header.forEach((h, idx) => {
-        row[h.trim()] = (cols[idx] ?? "").trim();
+      header.forEach((h, i) => {
+        obj[h.trim()] = (cols[i] ?? "").trim();
       });
 
-      rows.push(row);
+      rows.push(obj);
     }
 
     return rows;
   } catch (err) {
-    console.error("CSV LOAD ERROR:", err.message);
+    console.error("CSV LOAD ERROR:", err);
     throw new Error("CSV 파싱 오류: " + err.message);
   }
 }
 
-// 안전한 CSV split (따옴표 포함 처리)
+// 콤마와 큰따옴표 처리
 function safeSplit(str) {
   const result = [];
   let current = "";
@@ -60,7 +55,3 @@ function safeSplit(str) {
   result.push(current);
   return result;
 }
-
-module.exports = {
-  loadCsv,
-};

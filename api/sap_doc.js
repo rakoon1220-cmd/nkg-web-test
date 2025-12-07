@@ -1,58 +1,45 @@
-const { loadCsv } = require("./_csv.js");
+// /api/sap_doc.js
+import { loadCsv } from "./_csv.js";
 
-// SAP 문서 CSV URL
+// sap문서 상단
 const CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAWmUNAeyndXfdxHjR-1CakW_Tm3OzmMTng5RkB53umXwucqpxABqMMcB0y8H5cHNg7aoHYqFztz0F/pub?gid=1070360000&single=true&output=csv";
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   const { inv } = req.query;
 
   if (!inv) {
-    return res.status(200).json({
-      ok: false,
-      message: "인보이스 값이 없습니다.",
-    });
+    return res
+      .status(200)
+      .json({ ok: false, message: "인보이스가 없습니다." });
   }
 
   try {
-    // CSV Load (안정 처리)
-    let rows = [];
-    try {
-      rows = await loadCsv(CSV_URL);
-    } catch (err) {
-      console.error("CSV LOAD ERROR:", err.message);
-      return res.status(200).json({
-        ok: false,
-        message: "CSV를 불러오지 못했습니다.",
-        error: err.message,
-      });
-    }
+    let rows = await loadCsv(CSV_URL);
 
-    // 헤더/값 trim 처리
+    // 키 / 값 공백 제거
     rows = rows.map((r) => {
       const cleaned = {};
-      Object.keys(r).forEach((key) => {
-        cleaned[key.trim()] = (r[key] ?? "").toString().trim();
+      Object.keys(r).forEach((k) => {
+        cleaned[k.trim()] = (r[k] ?? "").toString().trim();
       });
       return cleaned;
     });
 
-    // 다양한 인보이스 컬럼 대응
-    const keys = ["인보이스", "문서번호", "invoice", "Invoice"];
+    const targets = ["인보이스", "Invoice", "invoice", "문서번호"];
 
-    let found = null;
-    for (const row of rows) {
-      for (const k of keys) {
-        if (!row[k]) continue;
-        if (row[k].toString().trim() === inv.trim()) {
-          found = row;
+    let row = null;
+    for (const r of rows) {
+      for (const key of targets) {
+        if (r[key] && r[key] === inv.trim()) {
+          row = r;
           break;
         }
       }
-      if (found) break;
+      if (row) break;
     }
 
-    if (!found) {
+    if (!row) {
       return res.status(200).json({
         ok: false,
         message: `인보이스(${inv})를 찾을 수 없습니다.`,
@@ -61,14 +48,14 @@ module.exports = async function handler(req, res) {
 
     return res.status(200).json({
       ok: true,
-      data: found,
+      data: row,
     });
   } catch (err) {
-    console.error("SERVER ERROR:", err);
+    console.error("SAP_DOC ERROR:", err);
     return res.status(200).json({
       ok: false,
-      message: "서버 내부 오류",
+      message: "서버 오류가 발생했습니다.",
       error: err.message,
     });
   }
-};
+}
