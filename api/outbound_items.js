@@ -1,90 +1,111 @@
 import { loadCsv } from "./_csv.js";
 
-// 📌 Google CSV URL
-const SAP_URL =
+// ▼ CSV 주소 4개
+const SAP_DOC_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAWmUNAeyndXfdxHjR-1CakW_Tm3OzmMTng5RkB53umXwucqpxABqMMcB0y8H5cHNg7aoHYqFztz0F/pub?gid=1070360000&single=true&output=csv";
 
+const SAP_ITEM_URL =
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAWmUNAeyndXfdxHjR-1CakW_Tm3OzmMTng5RkB53umXwucqpxABqMMcB0y8H5cHNg7aoHYqFztz0F/pub?gid=221455512&single=true&output=csv";
+
 const WMS_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-.../pub?gid=XXXXX&single=true&output=csv";
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAWmUNAeyndXfdxHjR-1CakW_Tm3OzmMTng5RkB53umXwucqpxABqMMcB0y8H5cHNg7aoHYqFztz0F/pub?gid=1850233363&single=true&output=csv";
 
 const BARCODE_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-.../pub?gid=XXXXX&single=true&output=csv";
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAWmUNAeyndXfdxHjR-1CakW_Tm3OzmMTng5RkB53umXwucqpxABqMMcB0y8H5cHNg7aoHYqFztz0F/pub?gid=1454119997&single=true&output=csv";
+
+// ------------------------------------------------------------
 
 export default async function handler(req, res) {
+  const { inv } = req.query;
+
+  if (!inv) {
+    return res.status(200).json({ ok: false, message: "인보이스 번호 없음" });
+  }
+
   try {
-    const { inv } = req.query;
-    if (!inv) {
-      return res.status(200).json({ ok: false, message: "인보이스가 없습니다." });
-    }
+    // 1) SAP 자재자동
+    const sapItems = await loadCsv(SAP_ITEM_URL);
 
-    // ===== CSV 로드 =====
-    const sapRows = await loadCsv(SAP_URL);
-    const wmsRows = await loadCsv(WMS_URL);
-    const bcRows = await loadCsv(BARCODE_URL);
+    // 2) 해당 인보이스 필터
+    const invItems = sapItems.filter(r => r["인보이스"] === inv);
 
-    // 📌 SAP 필터링
-    const items = sapRows.filter(r => r["인보이스"] === inv);
-
-    if (items.length === 0) {
+    if (invItems.length === 0) {
       return res.status(200).json({
         ok: false,
-        message: "해당 인보이스의 SAP 데이터가 없습니다."
+        message: "출고 검수 목록이 없습니다."
       });
     }
 
-    // ===== WMS 매핑 준비 =====
+    // 3) WMS 자동 불러오기
+    const wmsRows = await loadCsv(WMS_URL);
+
+    // WMS 매핑 (자재코드 기준)
     const wmsMap = {};
     wmsRows.forEach(r => {
-      const box = r["박스번호"];
-      const qty = Number(r["E열"] || r["수량"] || 0);
-      if (box) wmsMap[box] = qty;
-    });
-
-    // ===== 바코드 테이블 매핑 =====
-    // key = barcode + '_' + box
-    const barcodeMap = {};
-    bcRows.forEach(r => {
-      const bc = r["바코드"];
-      const box = r["박스번호"];
-      const disp = r["표시바코드"] || r["D열"] || bc;
-
-      if (bc && box) {
-        barcodeMap[`${bc}_${box}`] = disp;
-      }
-    });
-
-    // ===== 최종 구조로 변환 =====
-    const finalList = items.map(r => {
-      const box = r["박스번호"];
       const mat = r["자재코드"];
+      const qty = Number(r["수량"] || 0);
+      if (!wmsMap[mat]) wmsMap[mat] = 0;
+      wmsMap[mat] += qty;
+    });
 
-      // 바코드 찾기
+    // 4) 바코드 마스터
+    const barcodeRows = await loadCsv(BARCODE_URL);
+
+    // 바코드 → 자재코드 매핑
+    let barcodeList = {};
+    barcodeRows.forEach(r => {
+      const code = r["바코드"];
+      if (!barcodeList[code]) barcodeList[code] = [];
+      barcodeList[code].push({
+        mat: r["자재코드"],
+        box: r["박스번호"]
+      });
+    });
+
+    // ------------------------------------------------------------
+    // 5) 최종 아이템 조립
+    // ------------------------------------------------------------
+
+    const finalItems = invItems.map((r, idx) => {
+      const mat = r["자재코드"];
+      const box = r["박스번호"];
+      const name = r["자재내역"];
+      const sapQty = Number(r["출고"] || 0);
+
+      // WMS 수량 매핑
+      const wmsQty = wmsMap[mat] || 0;
+
+      // 바코드 검색
       let barcode = "-";
-      const keys = Object.keys(barcodeMap).filter(k => k.includes(`_${box}`));
-      if (keys.length > 0) {
-        barcode = barcodeMap[keys[0]];
-      }
+
+      const found = Object.entries(barcodeList).find(([code, arr]) =>
+        arr.some(b => b.mat === mat && b.box === box)
+      );
+
+      if (found) barcode = found[0];
 
       return {
-        no: r["번호"] ?? "",
+        no: idx + 1,
         mat,
         box,
-        name: r["자재내역"],
-        sap: Number(r["출고"] || 0),
-        unit: r["단위"],
-        wms: wmsMap[box] ?? 0,
+        name,
+        sap: sapQty,
+        wms: wmsQty,
+        unit: r["단위"] || "",
         barcode,
         scanned: 0,
         status: "미검수"
       };
     });
 
-    return res.status(200).json({ ok: true, items: finalList });
-
+    return res.status(200).json({
+      ok: true,
+      items: finalItems
+    });
   } catch (err) {
     return res.status(200).json({
       ok: false,
-      message: "오류: " + err.message
+      message: "CSV 파싱 오류: " + err.message
     });
   }
 }
