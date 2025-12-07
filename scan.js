@@ -10,16 +10,13 @@ const API_BASE = window.location.origin;
    - 배포:  /sound/ok.wav ...
    - 로컬(file): ./public/sound/ok.wav ...
 ============================================================ */
-const SOUND_BASE = IS_FILE ? "./public/sound" : "/sound";
+// 사운드 경로 설정
+const SOUND_BASE = "/sound";   // Vercel에서는 절대경로로 해야 재생됨
 
 function makeAudio(src) {
-  try {
-    const a = new Audio(src);
-    return a;
-  } catch (e) {
-    console.warn("AUDIO INIT FAIL:", src, e);
-    return null;
-  }
+  const audio = new Audio(src);
+  audio.preload = "auto";
+  return audio;
 }
 
 const soundOk = makeAudio(`${SOUND_BASE}/ok.wav`);
@@ -27,15 +24,12 @@ const soundDup = makeAudio(`${SOUND_BASE}/dup.wav`);
 const soundError = makeAudio(`${SOUND_BASE}/error.wav`);
 const soundModal = makeAudio(`${SOUND_BASE}/modal.wav`);
 
-function playSound(a) {
-  if (!a) return;
-  try {
-    a.currentTime = 0;
-    a.play();
-  } catch (e) {
-    console.warn("AUDIO PLAY FAIL:", e);
-  }
+function playSound(audio) {
+  if (!audio) return;
+  audio.currentTime = 0;
+  audio.play().catch(() => {});
 }
+
 
 /* ===== DOM 요소 ===== */
 const invInput = document.getElementById("invInput");
