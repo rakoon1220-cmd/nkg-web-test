@@ -49,65 +49,92 @@
 <!-- ======================================================= -->
 <main class="max-w-[1500px] mx-auto p-4 space-y-4">
 
-  <!-- 📌 Summary + Scan + Status 상단 박스 -->
-  <section class="bg-white rounded-xl shadow-sm border p-4 space-y-4">
+<!-- 📌 Summary + Invoice 조회 + Scan + Status 상단 박스 -->
+<section class="bg-white rounded-xl shadow-sm border p-4 space-y-6">
 
-    <!-- ▣ 상단 요약 정보 -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-      <div><b>인보이스:</b> <span id="inv_no">-</span></div>
-      <div><b>국가:</b> <span id="country">-</span></div>
-      <div><b>컨테이너:</b> <span id="container">-</span></div>
-      <div><b>CBM:</b> <span id="cbm">-</span></div>
-      <div><b>출고수량:</b> <span id="qty">-</span></div>
-      <div><b>상차시간:</b> <span id="load_time">-</span></div>
-      <div><b>상차위치:</b> <span id="load_loc">-</span></div>
+  <!-- ▣ 인보이스 조회 -->
+  <div>
+    <div class="text-sm font-semibold text-slate-600 mb-1">인보이스 조회</div>
+
+<div class="flex gap-2">
+  <input id="invInput"
+         type="text"
+         class="w-3/4 px-3 py-3 text-sm border border-slate-300 rounded-lg outline-none
+                focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+         placeholder="인보이스 번호를 입력하세요" />
+
+  <button id="btnLoadInv"
+          class="w-1/4 px-4 py-3 text-sm bg-sky-600 hover:bg-sky-700 text-white rounded-lg transition">
+    조회
+  </button>
+</div>
+
+
+
+    <div class="text-xs text-slate-400 mt-1">
+      인보이스 입력 후 조회 버튼을 누르면 출고정보가 자동으로 불러옵니다.
+    </div>
+  </div>
+
+  <!-- ▣ 상단 요약 정보 -->
+  <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 text-sm">
+
+    <div><b>인보이스:</b> <span id="inv_no">-</span></div>
+    <div><b>국가:</b> <span id="country">-</span></div>
+    <div><b>컨테이너:</b> <span id="container">-</span></div>
+    <div><b>CBM:</b> <span id="cbm">-</span></div>
+    <div><b>출고수량:</b> <span id="qty">-</span></div>
+    <div><b>상차시간:</b> <span id="load_time">-</span></div>
+    <div><b>상차위치:</b> <span id="load_loc">-</span></div>
+
+  </div>
+
+  <!-- ▣ 바코드 스캔 -->
+  <div>
+    <div class="text-sm font-semibold text-slate-600 mb-1">바코드 스캔</div>
+    <input id="barcodeInput"
+           type="text"
+           autofocus
+           class="w-full px-3 py-3 text-lg border border-slate-300 rounded-lg outline-none
+                  focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+           placeholder="바코드를 스캔하세요" />
+  </div>
+
+  <!-- ▣ 최근 스캔 + 누적 + 에러 -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+    <!-- 최근 스캔 -->
+    <div class="bg-slate-50 rounded-xl border p-3">
+      <div class="text-xs text-slate-500 mb-1">최근 스캔 결과</div>
+      <div id="recentScanStatus" class="text-lg font-bold text-slate-700">-</div>
+      <div id="recentScanDetail" class="text-[11px] text-slate-400 mt-1 leading-relaxed"></div>
     </div>
 
-    <!-- ▣ 바코드 스캔 -->
-    <div>
-      <div class="text-sm font-semibold text-slate-600 mb-1">바코드 스캔</div>
-      <input id="barcodeInput"
-             type="text"
-             autofocus
-             class="w-full px-3 py-3 text-lg border border-slate-300 rounded-lg outline-none
-                    focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
-             placeholder="바코드를 스캔하세요" />
+    <!-- 누적 -->
+    <div class="bg-slate-50 rounded-xl border p-3">
+      <div class="text-xs text-slate-500 mb-1">누적 진행</div>
+      <div class="flex items-baseline gap-2">
+        <span id="progress_now" class="text-2xl font-bold text-slate-800">0</span>
+        <span id="progress_total" class="text-xs text-slate-400">/ 0 품목</span>
+      </div>
+      <div class="mt-2 h-1.5 rounded-full bg-slate-200">
+        <div id="progress_bar" class="h-full w-0 bg-sky-500"></div>
+      </div>
     </div>
 
-    <!-- ▣ 최근 스캔 + 누적 + 에러 -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-      <!-- 최근 스캔 -->
-      <div class="bg-slate-50 rounded-xl border p-3">
-        <div class="text-xs text-slate-500 mb-1">최근 스캔 결과</div>
-        <div id="recentScanStatus" class="text-lg font-bold text-slate-700">-</div>
-        <div id="recentScanDetail" class="text-[11px] text-slate-400 mt-1 leading-relaxed"></div>
+    <!-- 에러 -->
+    <div class="bg-slate-50 rounded-xl border p-3">
+      <div class="text-xs text-slate-500 mb-1">에러 / 미등록</div>
+      <div class="flex items-baseline gap-2">
+        <span id="error_count" class="text-2xl font-bold text-red-600">0</span>
+        <span class="text-xs text-slate-400">건</span>
       </div>
-
-      <!-- 누적 -->
-      <div class="bg-slate-50 rounded-xl border p-3">
-        <div class="text-xs text-slate-500 mb-1">누적 진행</div>
-        <div class="flex items-baseline gap-2">
-          <span id="progress_now" class="text-2xl font-bold text-slate-800">0</span>
-          <span id="progress_total" class="text-xs text-slate-400">/ 0 품목</span>
-        </div>
-        <div class="mt-2 h-1.5 rounded-full bg-slate-200">
-          <div id="progress_bar" class="h-full w-0 bg-sky-500"></div>
-        </div>
-      </div>
-
-      <!-- 에러 -->
-      <div class="bg-slate-50 rounded-xl border p-3">
-        <div class="text-xs text-slate-500 mb-1">에러 / 미등록</div>
-        <div class="flex items-baseline gap-2">
-          <span id="error_count" class="text-2xl font-bold text-red-600">0</span>
-          <span class="text-xs text-slate-400">건</span>
-        </div>
-      </div>
-
     </div>
 
-  </section>
+  </div>
+
+</section>
+
 
 
   <!-- ======================================================= -->
