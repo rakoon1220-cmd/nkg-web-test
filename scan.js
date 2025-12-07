@@ -43,14 +43,15 @@ const noticeModal = document.getElementById("noticeModal");
 const noticeText = document.getElementById("noticeText");
 const noticeCloseBtn = document.getElementById("noticeCloseBtn");
 
-/* ===== 사운드 ===== */
+/* ===== 사운드 (MP3) ===== */
 let soundOk, soundDup, soundError, soundModal;
 if (!IS_FILE) {
-  soundOk = new Audio("/sound/ok.wav");
-  soundDup = new Audio("/sound/dup.wav");
-  soundError = new Audio("/sound/error.wav");
-  soundModal = new Audio("/sound/modal.wav");
+  soundOk = new Audio("/sound/ok.mp3");
+  soundDup = new Audio("/sound/dup.mp3");
+  soundError = new Audio("/sound/error.mp3");
+  soundModal = new Audio("/sound/modal.mp3");
 }
+
 
 /* ===== 상태 ===== */
 let currentNotice = "";
@@ -76,11 +77,16 @@ function playSafe(audio) {
 /* ===== 모달 표시 ===== */
 function showNoticeModal(text) {
   if (!text) return;
+
+  // 🔊 모달 열릴 때 사운드 재생
+  snd_modal.currentTime = 0;
+  snd_modal.play();
+
   currentNotice = text;
   noticeText.textContent = text;
   noticeModal.classList.remove("hidden");
-  playSafe(soundModal);
 }
+
 
 noticeCloseBtn.addEventListener("click", () => {
   noticeModal.classList.add("hidden");
@@ -285,6 +291,7 @@ function processScan(code) {
   const existed = scannedCodesSet.has(code);
   scannedCodesSet.add(code);
 
+  // 출고 목록에서 바코드 매칭
   const idx = outboundItems.findIndex(it => it.barcode === code);
   const item = idx >= 0 ? outboundItems[idx] : null;
 
@@ -293,7 +300,7 @@ function processScan(code) {
     errorCountValue++;
 
     let detail = `[미등록] 바코드: ${code}`;
-    const meta = barcodeIndexByCode[code];
+    const meta = barcodeIndexByCode[code]; // barcodes.csv 에서 찾은 값
     if (meta) {
       detail += ` / 박스번호: ${meta.box || "-"} / ${meta.name || ""}`;
     }
@@ -314,6 +321,52 @@ function processScan(code) {
     updateProgress();
     return;
   }
+
+  // ▣ 정상 품목 스캔
+  lastScannedBarcode = code;
+
+  if (!item.scanned) item.scanned = 0;
+  item.scanned++;
+
+  // 상태 업데이트
+  if (item.scanned < item.sap) {
+    item.status = "진행중";
+  } else if (item.scanned === item.sap) {
+    item.status = "완료";
+  } else {
+    item.status = "초과";
+  }
+
+  // 최근 스캔 표시
+  recentScanStatus.textContent = item.status;
+  recentScanStatus.className =
+    item.status === "완료"
+      ? "text-lg font-bold text-green-600"
+      : item.status === "초과"
+      ? "text-lg font-bold text-red-600"
+      : "text-lg font-bold text-amber-600";
+
+  recentScanDetail.textContent =
+    `${code} / 박스번호: ${item.box} / ${item.name}`;
+
+  scanHistory.push({
+    code,
+    type: existed ? "dup" : "ok",
+    item,
+  });
+
+  // 사운드
+  playSafe(
+    existed ? soundDup :
+    item.status === "초과" ? soundError :
+    soundOk
+  );
+
+  renderOutboundTable();
+  renderScanList();
+  updateProgress();
+}
+
 
   // 출고 목록에 있는 바코드
   lastScannedBarcode = code;
