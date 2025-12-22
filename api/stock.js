@@ -1,4 +1,4 @@
-// /api/stock.js — FINAL (연도 추정 금지)
+// /api/stock.js — FINAL (연도 추정 금지, 공백 포함 날짜 파싱 강화)
 // ✅ 출고일은 원본 그대로 사용 (예: "2025. 12. 01")
 // ✅ 필터/정렬은 "연도 포함 날짜"만 인정
 // ✅ MM/DD(연도 없음)로 내려오는 행은 제외(무결성 유지)
@@ -65,7 +65,9 @@ export default async function handler(req, res) {
       const keyFull = clean(r[0]);
       const invoice = clean(r[1]);
       const dateStr = clean(r[4]); // 출고일 (원본 그대로 저장)
-      const ymd = convertToYMD(dateStr); // ✅ 연도 포함 날짜만 파싱
+
+      // ✅ 연도 포함 날짜만 파싱 (공백/점/하이픈/슬래시 허용)
+      const ymd = convertToYMD(dateStr);
 
       // ✅ 연도 없는 날짜(MM/DD 등)는 제외 (무결성)
       if (!ymd) continue;
@@ -94,7 +96,7 @@ export default async function handler(req, res) {
         keyFull,
         invoice,
         country,
-        date: dateStr, // ✅ 원본 표시 그대로
+        date: dateStr, // ✅ 표시: 원본 그대로 (예: "2025. 12. 1")
         material,
         box,
         desc,
@@ -102,7 +104,7 @@ export default async function handler(req, res) {
         inQty,
         diff,
         work,
-        _ymd: ymd, // ✅ 정렬용
+        _ymd: ymd, // ✅ 정렬용 숫자
       });
     }
 
@@ -179,21 +181,20 @@ function toNumber(v) {
 }
 
 /**
- * ✅ 연도 포함 날짜만 허용
- * - "YYYY.MM.DD" / "YYYY-MM-DD" / "YYYY/MM/DD" 지원
- * - 스프레드시트 표시가 "MM/DD"로 내려오면 0 반환(=제외)
+ * ✅ 연도 포함 날짜만 허용 (공백 포함 강력 지원)
+ * - "2025. 12. 1" / "2025.12.01" / "2025-12-1" / "2025/12/01" 모두 OK
+ * - "12/01" 같은 연도 없는 값은 0 반환 (제외)
  */
 function convertToYMD(str) {
   if (!str) return 0;
   const s = String(str).trim();
 
-  // YYYY.MM.DD / YYYY-MM-DD / YYYY/MM/DD (+ 공백 허용)
-  const m = s.match(/^(\d{4})[.\-\/]\s*(\d{1,2})[.\-\/]\s*(\d{1,2})$/);
+  const m = s.match(/^(\d{4})\s*[.\-\/]\s*(\d{1,2})\s*[.\-\/]\s*(\d{1,2})$/);
   if (!m) return 0;
 
   const y = m[1];
-  const mo = m[2].padStart(2, "0");
-  const d = m[3].padStart(2, "0");
+  const mo = String(m[2]).padStart(2, "0");
+  const d = String(m[3]).padStart(2, "0");
 
   const ymd = Number(`${y}${mo}${d}`);
   return Number.isFinite(ymd) ? ymd : 0;
