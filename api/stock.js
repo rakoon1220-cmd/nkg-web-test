@@ -193,25 +193,28 @@ function toNumber(v) {
 function convertToYMD(str) {
   if (!str) return 0;
   const s = String(str).trim();
+  const today = getTodayYMD();
+  const thisYear = new Date().getFullYear();
 
   // YYYY.MM.DD / YYYY-MM-DD / YYYY/MM/DD
   let m = s.match(/^(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})$/);
   if (m) {
-    const y = m[1];
-    const mo = m[2].padStart(2, "0");
-    const d = m[3].padStart(2, "0");
-    return Number(`${y}${mo}${d}`);
+    return Number(`${m[1]}${m[2].padStart(2,"0")}${m[3].padStart(2,"0")}`);
   }
 
-  // MM/DD or MM-DD → 올해 기준
+  // MM/DD or MM-DD
   m = s.match(/^(\d{1,2})[\/\-](\d{1,2})$/);
   if (m) {
-    const y = new Date().getFullYear();
-    const mo = m[1].padStart(2, "0");
-    const d = m[2].padStart(2, "0");
-    return Number(`${y}${mo}${d}`);
+    const mm = m[1].padStart(2,"0");
+    const dd = m[2].padStart(2,"0");
+    let ymd = Number(`${thisYear}${mm}${dd}`);
+    if (ymd < today) {
+      ymd = Number(`${thisYear + 1}${mm}${dd}`);
+    }
+    return ymd;
   }
 
   return 0;
 }
+
 
