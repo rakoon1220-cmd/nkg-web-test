@@ -1,4 +1,4 @@
-// /api/stock.js — Stable Serverless Version (정렬 + 오늘이전 제외 강화 + 안전 length)
+// /api/stock.js — Stable Serverless Version (정렬 + 오늘이전 제외 + MM/DD 지원 + ReferenceError 방지)
 
 export default async function handler(req, res) {
   try {
@@ -60,10 +60,10 @@ export default async function handler(req, res) {
 
       const keyFull = clean(r[0]); // 인보이스+자재코드
       const invoice = clean(r[1]);
-      const dateStr = clean(r[4]); // 출고일
+      const dateStr = clean(r[4]); // 출고일 (Google Sheets 표시가 12/01로 나올 수 있음)
       const ymd = convertToYMD(dateStr);
 
-      // ✅ 오늘 이전 출고 제외 (날짜 파싱 안되면 제외)
+      // ✅ 오늘 이전 출고 제외 (날짜 파싱 실패도 제외)
       if (!ymd || ymd < today) continue;
 
       const country = clean(r[5]);
@@ -187,34 +187,45 @@ function toNumber(v) {
 }
 
 /**
- * "YYYY.MM.DD" → 20251222 (Number)
+ * 날짜를 yyyymmdd(Number)로 변환
+ * - "YYYY.MM.DD" / "YYYY-MM-DD" / "YYYY/MM/DD" 지원
+ * - "MM/DD" / "MM-DD" 지원 (연도는 현재 연도로 가정)
  * 파싱 실패하면 0
  */
 function convertToYMD(str) {
   if (!str) return 0;
   const s = String(str).trim();
-  const today = getTodayYMD();
   const thisYear = new Date().getFullYear();
 
   // YYYY.MM.DD / YYYY-MM-DD / YYYY/MM/DD
   let m = s.match(/^(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})$/);
   if (m) {
-    return Number(`${m[1]}${m[2].padStart(2,"0")}${m[3].padStart(2,"0")}`);
+    const y = m[1];
+    const mo = m[2].padStart(2, "0");
+    const d = m[3].padStart(2, "0");
+    const ymd = Number(`${y}${mo}${d}`);
+    return Number.isFinite(ymd) ? ymd : 0;
   }
 
-  // MM/DD or MM-DD
+  // MM/DD or MM-DD → 올해 기준
   m = s.match(/^(\d{1,2})[\/\-](\d{1,2})$/);
   if (m) {
-    const mm = m[1].padStart(2,"0");
-    const dd = m[2].padStart(2,"0");
-    let ymd = Number(`${thisYear}${mm}${dd}`);
-    if (ymd < today) {
-      ymd = Number(`${thisYear + 1}${mm}${dd}`);
-    }
-    return ymd;
+    const mo = m[1].padStart(2, "0");
+    const d = m[2].padStart(2, "0");
+    const ymd = Number(`${thisYear}${mo}${d}`);
+    return Number.isFinite(ymd) ? ymd : 0;
   }
 
   return 0;
 }
+
+function getTodayYMD() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return Number(`${y}${m}${day}`);
+}
+
 
 
