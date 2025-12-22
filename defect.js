@@ -55,33 +55,34 @@ async function searchDefect() {
         document.getElementById("sum_loc").textContent = first.loc || "-";
         document.getElementById("sum_note").textContent = first.note || "-";
 
-        /* 상세내역 테이블 */
-        for (const r of rows) {
-            const tr = document.createElement("tr");
-            tr.className = "border-b border-slate-200 hover:bg-slate-50";
+       /* 상세내역 테이블 */
+rows.forEach((r, idx) => {
+  const tr = document.createElement("tr");
+  tr.className = "border-b border-slate-200 hover:bg-slate-50";
 
-            let bg = "";
-            if (r.outQty === 0) bg = "bg-red-600 text-white";
-            else if (r.inQty > r.outQty) bg = "bg-green-100";
+  let bg = "";
+  if (r.outQty === 0) bg = "bg-red-600 text-white";
+  else if (r.inQty > r.outQty) bg = "bg-green-100";
 
-            let compareText = r.diff;
-            if (r.diff === 0 && r.outQty !== 0) compareText = "입고완료";
-            if (r.inQty < r.outQty) compareText = "-";
+  let compareText = r.diff;
+  if (r.diff === 0 && r.outQty !== 0) compareText = "입고완료";
+  if (r.inQty < r.outQty) compareText = "-";
 
-            tr.innerHTML = `
-                <td class="hidden-col">${r.keyFull}</td>
-                <td class="px-3 py-2 nowrap">${r.no}</td>
-                <td class="px-3 py-2 nowrap">${r.material}</td>
-                <td class="px-3 py-2 nowrap">${r.box}</td>
-                <td class="px-3 py-2 nowrap max-w-[200px] overflow-hidden text-ellipsis">${r.desc}</td>
-                <td class="px-3 py-2 text-right nowrap ${bg}">${r.outQty}</td>
-                <td class="px-3 py-2 text-right nowrap">${r.inQty}</td>
-                <td class="px-3 py-2 text-right nowrap">${compareText}</td>
-                <td class="px-3 py-2 nowrap">${r.work}</td>
-            `;
+  tr.innerHTML = `
+    <td class="hidden-col">${r.keyFull}</td>
+    <td class="px-3 py-2 nowrap">${idx + 1}</td>
+    <td class="px-3 py-2 nowrap">${r.material}</td>
+    <td class="px-3 py-2 nowrap">${r.box}</td>
+    <td class="px-3 py-2 nowrap max-w-[200px] overflow-hidden text-ellipsis">${r.desc}</td>
+    <td class="px-3 py-2 text-right nowrap ${bg}">${r.outQty}</td>
+    <td class="px-3 py-2 text-right nowrap">${r.inQty}</td>
+    <td class="px-3 py-2 text-right nowrap">${compareText}</td>
+    <td class="px-3 py-2 nowrap">${r.work}</td>
+  `;
 
-            tbody.appendChild(tr);
-        }
+  tbody.appendChild(tr);
+});
+
 
         status.textContent = `${rows.length}건 조회됨`;
 
