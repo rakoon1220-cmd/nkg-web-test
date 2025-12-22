@@ -1,4 +1,4 @@
-// /api/stock.js — Stable Serverless Version
+// /api/stock.js — Stable Serverless Version (정렬 + 오늘이전 제외 강화 + 안전 length)
 
 export default async function handler(req, res) {
   try {
@@ -8,7 +8,7 @@ export default async function handler(req, res) {
     }
 
     const searchKey = String(key).trim();
-    const isNumericSearch = /^[0-9]+$/.test(searchKey); // 자재코드 검색인지 판단
+    const isNumericSearch = /^[0-9]+$/.test(searchKey); // 숫자면 자재코드, 아니면 박스
     const today = getTodayYMD();
 
     // 📌 SAP & WMS CSV URL
@@ -19,7 +19,7 @@ export default async function handler(req, res) {
       "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAWmUNAeyndXfdxHjR-1CakW_Tm3OzmMTng5RkB53umXwucqpxABqMMcB0y8H5cHNg7aoHYqFztz0F/pub?gid=1850233363&single=true&output=csv";
 
     // ======================
-    // 📌 1) SAP CSV 읽기
+    // 1) SAP CSV 읽기
     // ======================
     const sapResp = await fetch(SAP_CSV_URL);
     if (!sapResp.ok) throw new Error("SAP CSV 요청 실패");
@@ -27,7 +27,7 @@ export default async function handler(req, res) {
     const sapRows = parseCSV(sapText).slice(1); // 헤더 제외
 
     // ======================
-    // 📌 2) WMS CSV 읽기
+    // 2) WMS CSV 읽기
     // ======================
     const wmsResp = await fetch(WMS_CSV_URL);
     if (!wmsResp.ok) throw new Error("WMS CSV 요청 실패");
@@ -35,10 +35,9 @@ export default async function handler(req, res) {
     const wmsRows = parseCSV(wmsText).slice(1);
 
     // ======================
-    // 📌 3) WMS 입고수량 맵 생성 (keyFull 기준)
+    // 3) WMS 입고수량 맵 생성 (keyFull 기준)
     // ======================
     const wmsMap = new Map();
-
     for (const r of wmsRows) {
       if (!r || r.length < 5) continue;
 
@@ -51,27 +50,28 @@ export default async function handler(req, res) {
     }
 
     // ======================
-    // 📌 4) SAP + WMS 결합 & 필터링
+    // 4) SAP + WMS 결합 & 필터링
     // ======================
     const matched = [];
 
     for (const r of sapRows) {
-      if (!r || r.length < 10) continue;
+      // work(r[18])까지 쓰므로 최소 19칸 필요
+      if (!r || r.length < 19) continue;
 
       const keyFull = clean(r[0]); // 인보이스+자재코드
       const invoice = clean(r[1]);
       const dateStr = clean(r[4]); // 출고일
       const ymd = convertToYMD(dateStr);
 
-      // 오늘 이전 출고 제외
-      if (ymd && ymd < today) continue;
+      // ✅ 오늘 이전 출고 제외 (날짜 파싱 안되면 제외)
+      if (!ymd || ymd < today) continue;
 
       const country = clean(r[5]);
       const material = clean(r[6]); // 자재코드
       const desc = clean(r[7]); // 자재내역
       const outQty = toNumber(r[8]); // 출고수량
       const box = clean(r[9]); // 박스번호
-      const work = clean(r[18]);
+      const work = clean(r[18]); // 작업
 
       // 검색 조건
       if (isNumericSearch) {
@@ -99,6 +99,26 @@ export default async function handler(req, res) {
         work,
       });
     }
+
+    // ✅ 출고일 기준 오름차순 정렬 (빠른 날짜 → 늦은 날짜)
+    matched.sort((a, b) => {
+      const da = convertToYMD(a.date) || 99999999;
+      const db = convertToYMD(b.date) || 99999999;
+      if (da !== db) return da - db;
+
+      // 같은 날짜면 안정 정렬
+      const ia = String(a.invoice || "");
+      const ib = String(b.invoice || "");
+      if (ia !== ib) return ia.localeCompare(ib, "ko");
+
+      const ma = String(a.material || "");
+      const mb = String(b.material || "");
+      if (ma !== mb) return ma.localeCompare(mb, "ko");
+
+      const बा = String(a.box || "");
+      const bb = String(b.box || "");
+      return बा.localeCompare(bb, "ko");
+    });
 
     return res.status(200).json({
       ok: true,
@@ -166,15 +186,20 @@ function toNumber(v) {
   return isNaN(n) ? 0 : n;
 }
 
+/**
+ * "YYYY.MM.DD" → 20251222 (Number)
+ * 파싱 실패하면 0
+ */
 function convertToYMD(str) {
   if (!str) return 0;
-  const parts = str.split(".");
+  const parts = String(str).trim().split(".");
   if (parts.length !== 3) return 0;
 
   const y = parts[0];
-  const m = parts[1].padStart(2, "0");
-  const d = parts[2].padStart(2, "0");
-  return Number(`${y}${m}${d}`);
+  const m = String(parts[1]).padStart(2, "0");
+  const d = String(parts[2]).padStart(2, "0");
+  const ymd = Number(`${y}${m}${d}`);
+  return Number.isFinite(ymd) ? ymd : 0;
 }
 
 function getTodayYMD() {
