@@ -1,8 +1,8 @@
-// /api/stock.js — FINAL STABLE VERSION
-// ✅ 오늘이전 제외
-// ✅ 출고일(_ymd) 기준 정렬
-// ✅ MM/DD(연도없음) → 오늘보다 과거면 내년 보정
-// ✅ 2026년 데이터 정상 조회
+// /api/stock.js — FINAL (연도 추정 금지)
+// ✅ 출고일은 원본 그대로 사용 (예: "2025. 12. 01")
+// ✅ 필터/정렬은 "연도 포함 날짜"만 인정
+// ✅ MM/DD(연도 없음)로 내려오는 행은 제외(무결성 유지)
+// ✅ 오늘 이전 제외 + ✅ 출고일 기준 정렬 + ✅ 안전 length
 
 export default async function handler(req, res) {
   try {
@@ -12,13 +12,10 @@ export default async function handler(req, res) {
     }
 
     const searchKey = String(key).trim();
-    const isNumericSearch = /^[0-9]+$/.test(searchKey);
+    const isNumericSearch = /^[0-9]+$/.test(searchKey); // 숫자면 자재코드, 아니면 박스
     const today = getTodayYMD();
-    const thisYear = new Date().getFullYear();
 
-    // ======================
-    // CSV URL
-    // ======================
+    // 📌 SAP & WMS CSV URL
     const SAP_CSV_URL =
       "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAWmUNAeyndXfdxHjR-1CakW_Tm3OzmMTng5RkB53umXwucqpxABqMMcB0y8H5cHNg7aoHYqFztz0F/pub?gid=221455512&single=true&output=csv";
 
@@ -26,77 +23,93 @@ export default async function handler(req, res) {
       "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAWmUNAeyndXfdxHjR-1CakW_Tm3OzmMTng5RkB53umXwucqpxABqMMcB0y8H5cHNg7aoHYqFztz0F/pub?gid=1850233363&single=true&output=csv";
 
     // ======================
-    // 1) SAP
+    // 1) SAP CSV 읽기
     // ======================
-    const sapText = await (await fetch(SAP_CSV_URL)).text();
-    const sapRows = parseCSV(sapText).slice(1);
+    const sapResp = await fetch(SAP_CSV_URL);
+    if (!sapResp.ok) throw new Error("SAP CSV 요청 실패");
+    const sapText = await sapResp.text();
+    const sapRows = parseCSV(sapText).slice(1); // 헤더 제외
 
     // ======================
-    // 2) WMS
+    // 2) WMS CSV 읽기
     // ======================
-    const wmsText = await (await fetch(WMS_CSV_URL)).text();
+    const wmsResp = await fetch(WMS_CSV_URL);
+    if (!wmsResp.ok) throw new Error("WMS CSV 요청 실패");
+    const wmsText = await wmsResp.text();
     const wmsRows = parseCSV(wmsText).slice(1);
 
     // ======================
-    // 3) WMS 입고 맵
+    // 3) WMS 입고수량 맵 생성 (keyFull 기준)
     // ======================
     const wmsMap = new Map();
     for (const r of wmsRows) {
       if (!r || r.length < 5) continue;
-      const keyFull = clean(r[0]);
+
+      const keyFull = clean(r[0]); // 인보이스+자재코드
       const qty = toNumber(r[4]);
-      if (keyFull) wmsMap.set(keyFull, (wmsMap.get(keyFull) || 0) + qty);
+
+      if (keyFull) {
+        wmsMap.set(keyFull, (wmsMap.get(keyFull) || 0) + qty);
+      }
     }
 
     // ======================
-    // 4) 결합 + 필터
+    // 4) SAP + WMS 결합 & 필터링
     // ======================
     const matched = [];
 
     for (const r of sapRows) {
+      // work(r[18])까지 쓰므로 최소 19칸 필요
       if (!r || r.length < 19) continue;
 
       const keyFull = clean(r[0]);
       const invoice = clean(r[1]);
-      const dateStr = clean(r[4]);
+      const dateStr = clean(r[4]); // 출고일 (원본 그대로 저장)
+      const ymd = convertToYMD(dateStr); // ✅ 연도 포함 날짜만 파싱
 
-      const ymd = convertToYMD(dateStr, today, thisYear);
-      if (!ymd || ymd < today) continue;
+      // ✅ 연도 없는 날짜(MM/DD 등)는 제외 (무결성)
+      if (!ymd) continue;
 
+      // ✅ 오늘 이전 출고 제외
+      if (ymd < today) continue;
+
+      const country = clean(r[5]);
       const material = clean(r[6]);
+      const desc = clean(r[7]);
+      const outQty = toNumber(r[8]);
       const box = clean(r[9]);
+      const work = clean(r[18]);
 
+      // 검색 조건
       if (isNumericSearch) {
         if (material !== searchKey) continue;
       } else {
         if (box.toUpperCase() !== searchKey.toUpperCase()) continue;
       }
 
-      const outQty = toNumber(r[8]);
       const inQty = toNumber(wmsMap.get(keyFull));
       const diff = inQty - outQty;
 
       matched.push({
+        keyFull,
         invoice,
-        country: clean(r[5]),
-        date: dateStr,
+        country,
+        date: dateStr, // ✅ 원본 표시 그대로
         material,
         box,
-        desc: clean(r[7]),
+        desc,
         outQty,
         inQty,
         diff,
-        work: clean(r[18]),
-        _ymd: ymd, // 🔑 정렬 기준
+        work,
+        _ymd: ymd, // ✅ 정렬용
       });
     }
 
-    // ======================
-    // ✅ 출고일 기준 정렬 (핵심)
-    // ======================
+    // ✅ 출고일 기준 오름차순 정렬 (빠른 날짜 → 늦은 날짜)
     matched.sort((a, b) => a._ymd - b._ymd);
 
-    // _ymd 제거
+    // _ymd 제거(응답 깔끔하게)
     const data = matched.map(({ _ymd, ...rest }) => rest);
 
     return res.status(200).json({
@@ -110,59 +123,86 @@ export default async function handler(req, res) {
   }
 }
 
-/* =========================
-   Utils
-========================= */
-
-function convertToYMD(str, todayYMD, thisYear) {
-  if (!str) return 0;
-  const s = String(str).trim();
-
-  let m = s.match(/^(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})$/);
-  if (m) return Number(`${m[1]}${m[2].padStart(2, "0")}${m[3].padStart(2, "0")}`);
-
-  m = s.match(/^(\d{1,2})[\/\-](\d{1,2})$/);
-  if (m) {
-    let ymd = Number(`${thisYear}${m[1].padStart(2, "0")}${m[2].padStart(2, "0")}`);
-    if (ymd < todayYMD) ymd = Number(`${thisYear + 1}${m[1].padStart(2, "0")}${m[2].padStart(2, "0")}`);
-    return ymd;
-  }
-
-  return 0;
-}
-
-function getTodayYMD() {
-  const d = new Date();
-  return Number(
-    `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`
-  );
-}
+/* ====================================================================
+   공통 유틸
+==================================================================== */
 
 function parseCSV(text) {
   text = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
   const rows = [];
-  let row = [], field = "", inQuotes = false;
+  let row = [];
+  let field = "";
+  let inQuotes = false;
 
   for (let i = 0; i < text.length; i++) {
     const c = text[i];
+
     if (c === '"') {
-      if (inQuotes && text[i + 1] === '"') { field += '"'; i++; }
-      else inQuotes = !inQuotes;
+      if (inQuotes && text[i + 1] === '"') {
+        field += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
     } else if (c === "," && !inQuotes) {
-      row.push(field); field = "";
+      row.push(field);
+      field = "";
     } else if (c === "\n" && !inQuotes) {
-      row.push(field); rows.push(row); row = []; field = "";
-    } else field += c;
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = "";
+    } else {
+      field += c;
+    }
   }
-  if (field || row.length) { row.push(field); rows.push(row); }
+
+  if (field || row.length) {
+    row.push(field);
+    rows.push(row);
+  }
   return rows;
 }
 
 function clean(str) {
-  return String(str || "").replace(/\uFEFF/g, "").replace(/\r|\n/g, " ").trim();
+  return String(str || "")
+    .replace(/\uFEFF/g, "")
+    .replace(/\r/g, "")
+    .replace(/\n/g, " ")
+    .trim();
 }
 
 function toNumber(v) {
   const n = parseFloat(String(v || "").replace(/,/g, ""));
   return isNaN(n) ? 0 : n;
+}
+
+/**
+ * ✅ 연도 포함 날짜만 허용
+ * - "YYYY.MM.DD" / "YYYY-MM-DD" / "YYYY/MM/DD" 지원
+ * - 스프레드시트 표시가 "MM/DD"로 내려오면 0 반환(=제외)
+ */
+function convertToYMD(str) {
+  if (!str) return 0;
+  const s = String(str).trim();
+
+  // YYYY.MM.DD / YYYY-MM-DD / YYYY/MM/DD (+ 공백 허용)
+  const m = s.match(/^(\d{4})[.\-\/]\s*(\d{1,2})[.\-\/]\s*(\d{1,2})$/);
+  if (!m) return 0;
+
+  const y = m[1];
+  const mo = m[2].padStart(2, "0");
+  const d = m[3].padStart(2, "0");
+
+  const ymd = Number(`${y}${mo}${d}`);
+  return Number.isFinite(ymd) ? ymd : 0;
+}
+
+function getTodayYMD() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return Number(`${y}${m}${day}`);
 }
