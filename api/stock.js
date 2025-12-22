@@ -192,20 +192,26 @@ function toNumber(v) {
  */
 function convertToYMD(str) {
   if (!str) return 0;
-  const parts = String(str).trim().split(".");
-  if (parts.length !== 3) return 0;
+  const s = String(str).trim();
 
-  const y = parts[0];
-  const m = String(parts[1]).padStart(2, "0");
-  const d = String(parts[2]).padStart(2, "0");
-  const ymd = Number(`${y}${m}${d}`);
-  return Number.isFinite(ymd) ? ymd : 0;
+  // YYYY.MM.DD / YYYY-MM-DD / YYYY/MM/DD
+  let m = s.match(/^(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})$/);
+  if (m) {
+    const y = m[1];
+    const mo = m[2].padStart(2, "0");
+    const d = m[3].padStart(2, "0");
+    return Number(`${y}${mo}${d}`);
+  }
+
+  // MM/DD or MM-DD → 올해 기준
+  m = s.match(/^(\d{1,2})[\/\-](\d{1,2})$/);
+  if (m) {
+    const y = new Date().getFullYear();
+    const mo = m[1].padStart(2, "0");
+    const d = m[2].padStart(2, "0");
+    return Number(`${y}${mo}${d}`);
+  }
+
+  return 0;
 }
 
-function getTodayYMD() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return Number(`${y}${m}${day}`);
-}
