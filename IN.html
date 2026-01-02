@@ -2,305 +2,171 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>출고검수 스캔 · 남경 검수시스템</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>입고검수 스캔 · 남경 검수시스템</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
     body { background: #eef1f5; }
 
     @keyframes fadeIn {
-      from { opacity:0; transform:translateY(20px) scale(0.95);}
-      to   { opacity:1; transform:translateY(0) scale(1);}
+      from { opacity:0; transform:translateY(20px) scale(0.95); }
+      to   { opacity:1; transform:translateY(0) scale(1); }
     }
     .animate-fadeIn { animation: fadeIn 0.25s ease-out; }
+
+    /* 최근 스캔 3줄 고정 */
+    #scanList {
+      max-height: 4.5rem;
+      overflow: hidden;
+    }
   </style>
 </head>
 
 <body class="min-h-screen bg-slate-100">
 
-<!-- ▣ NAV 메뉴 (모바일 햄버거 적용 버전) -->
+<!-- NAV -->
 <nav class="bg-[#0A1833] text-white fixed top-0 w-full z-50 shadow">
   <div class="max-w-6xl mx-auto px-4">
     <div class="flex justify-between items-center h-14">
-
-      <!-- 로고 -->
       <a href="index.html" class="flex items-center gap-2">
         <div class="w-8 h-8 bg-sky-500 rounded-lg flex items-center justify-center text-xs font-bold">NK</div>
-        <span class="font-semibold text-sm tracking-wide">남경 검수시스템</span>
+        <span class="font-semibold text-sm">남경 검수시스템</span>
       </a>
 
-      <!-- PC 메뉴 -->
-      <div class="hidden md:flex items-center gap-4 text-sm">
-        <a href="index.html" class="hover:text-sky-300">홈</a>
-        <a href="index_shipping.html" class="hover:text-sky-300">출고정보</a>
-        <a href="index_defect.html" class="hover:text-sky-300">결품조회</a>
-        <a href="index_stock.html" class="hover:text-sky-300">재고조회</a>
-        <a href="scan.html" class="text-sky-300 font-semibold">스캔검수</a>
-
-        <button onclick="history.back()"
-          class="text-white px-3 py-1 border border-white/30 rounded-lg text-xs hover:bg-white hover:text-[#0A1833] transition">
-          ← 뒤로
-        </button>
-      </div>
-
-      <!-- 모바일 햄버거 -->
-      <button id="mobileNavBtn" class="md:hidden text-white text-2xl focus:outline-none">
-        ☰
-      </button>
-
+      <button id="mobileNavBtn" class="md:hidden text-2xl">☰</button>
     </div>
   </div>
 
-  <!-- 모바일 메뉴 -->
   <div id="mobileNavMenu"
-    class="md:hidden hidden flex flex-col bg-[#0A1833] text-white px-6 py-3 space-y-3 text-sm border-t border-white/20">
-
-    <a href="index.html" class="hover:text-sky-300">홈</a>
-    <a href="index_shipping.html" class="hover:text-sky-300">출고정보</a>
-    <a href="index_defect.html" class="hover:text-sky-300">결품조회</a>
-    <a href="index_stock.html" class="hover:text-sky-300">재고조회</a>
-    <a href="scan.html" class="text-sky-300 font-semibold">스캔검수</a>
-
-    <button onclick="history.back()"
-      class="text-left text-white px-0 py-1 text-sm border-t border-white/10 pt-3">
-      ← 뒤로가기
-    </button>
+       class="md:hidden hidden bg-[#0A1833] text-white px-6 py-3 space-y-3 text-sm">
+    <a href="index.html">홈</a>
+    <a href="scan.html">출고검수</a>
+    <a href="IN.html" class="text-sky-300 font-semibold">입고검수</a>
   </div>
 </nav>
 
-<!-- NAV 아래 여백 확보 -->
 <div class="h-14"></div>
 
 <script>
-  const mobileBtn = document.getElementById("mobileNavBtn");
-  const mobileMenu = document.getElementById("mobileNavMenu");
-
-  mobileBtn.addEventListener("click", () => {
-    mobileMenu.classList.toggle("hidden");
-  });
+  mobileNavBtn.onclick = () => mobileNavMenu.classList.toggle("hidden");
 </script>
 
+<!-- MAIN -->
+<main class="max-w-[1500px] mx-auto p-3 space-y-3 min-h-[calc(100dvh-56px)] flex flex-col">
 
-<!-- 메인 -->
-<main class="max-w-[1500px] mx-auto p-4 space-y-4 h-[calc(100vh-56px)] flex flex-col min-h-0">
+  <!-- 상단 -->
+  <section class="bg-white rounded-xl border p-3 space-y-4">
 
+    <!-- 🔹 인보이스 + 버튼 묶음 -->
+    <div class="grid grid-cols-1 gap-2">
 
-  <!-- 📌 상단: 인보이스 조회 + 요약 + 스캔 + 상태 -->
-  <section class="bg-white rounded-xl shadow-sm border p-4 space-y-6 shrink-0">
+      <input id="invInput"
+        class="w-full px-4 py-4 text-2xl font-extrabold tracking-[0.12em]
+               border-2 border-slate-600 rounded-2xl
+               focus:ring-4 focus:ring-sky-500 text-center bg-slate-50"
+        placeholder="INV NO"
+        autocomplete="off"
+        inputmode="numeric" />
 
-    <!-- ▣ 인보이스 조회 -->
-    <div>
-      <div class="flex items-center gap-6">
+      <!-- ✅ 조회 | 특이사항 배열 -->
+      <div class="grid grid-cols-2 divide-x divide-white rounded-2xl overflow-hidden shadow-sm">
+        <button id="btnLoadInv"
+          class="py-3 text-base font-extrabold
+                 bg-sky-600 hover:bg-sky-700 text-white">
+          조회
+        </button>
 
-  <!-- 인보이스 입력 -->
-  <input id="invInput"
-    class="w-[32rem] px-12 py-10
-           text-6xl font-black tracking-[0.2em]
-           placeholder:text-4xl
-           border-[5px] border-slate-600 rounded-[3rem]
-           focus:ring-[10px] focus:ring-sky-500 focus:border-sky-700
-           shadow-2xl text-center bg-slate-50"
-    placeholder="INV NO" />
-
-  <!-- 조회 -->
-  <button id="btnLoadInv"
-    class="px-12 py-10
-           text-4xl font-black tracking-wide
-           bg-sky-600 hover:bg-sky-700
-           text-white rounded-[3rem]
-           shadow-2xl active:scale-95">
-    조회
-  </button>
-
-  <!-- 특이사항 -->
-  <button id="btnNoticeOpen"
-    class="px-12 py-10
-           text-4xl font-black tracking-wide
-           bg-orange-500 hover:bg-orange-600
-           text-white rounded-[3rem]
-           shadow-2xl active:scale-95">
-    특이사항
-  </button>
-
-</div>
-
+        <button id="btnNoticeOpen"
+          class="py-3 text-base font-extrabold
+                 bg-orange-500 hover:bg-orange-600 text-white">
+          특이사항
+        </button>
+      </div>
     </div>
 
-    <!-- ▣ 상단 요약 (2줄 헤더 스타일) -->
-    <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
-
-      <!-- 1줄 -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm font-medium text-slate-700">
-        <div>
-          <div class="text-[11px] text-slate-500">인보이스</div>
-          <div id="inv_no" class="text-base font-semibold whitespace-nowrap">-</div>
-        </div>
-
-        <div>
-          <div class="text-[11px] text-slate-500">국가</div>
-          <div id="country" class="text-base font-semibold whitespace-nowrap">-</div>
-        </div>
-
-        <div>
-          <div class="text-[11px] text-slate-500">상차 위치</div>
-          <div id="load_loc" class="text-base font-semibold whitespace-nowrap">-</div>
-        </div>
-
-        <div>
-          <div class="text-[11px] text-slate-500">상차 시간</div>
-          <div id="load_time" class="text-base font-semibold whitespace-nowrap">-</div>
-        </div>
+    <!-- 요약 -->
+    <div class="bg-slate-50 border rounded-xl p-3 space-y-2 text-sm">
+      <div class="grid grid-cols-2 gap-2">
+        <div><span class="text-slate-500">인보이스</span><div id="inv_no">-</div></div>
+        <div><span class="text-slate-500">국가</span><div id="country">-</div></div>
+        <div><span class="text-slate-500">상차위치</span><div id="load_loc">-</div></div>
+        <div><span class="text-slate-500">상차시간</span><div id="load_time">-</div></div>
       </div>
 
-      <div class="border-t border-slate-200"></div>
-
-      <!-- 2줄 -->
-      <div class="grid grid-cols-3 gap-3 text-sm font-medium text-slate-700">
-        <div>
-          <div class="text-[11px] text-slate-500">컨테이너</div>
-          <div id="container" class="text-base font-semibold whitespace-nowrap">-</div>
-        </div>
-
-        <div>
-          <div class="text-[11px] text-slate-500">CBM</div>
-          <div id="cbm" class="text-base font-semibold whitespace-nowrap">-</div>
-        </div>
-
-        <div>
-          <div class="text-[11px] text-slate-500">출고수량(Box)</div>
-          <div id="qty" class="text-base font-semibold whitespace-nowrap">-</div>
-        </div>
+      <div class="grid grid-cols-3 gap-2">
+        <div><span class="text-slate-500">컨테이너</span><div id="container">-</div></div>
+        <div><span class="text-slate-500">CBM</span><div id="cbm">-</div></div>
+        <div><span class="text-slate-500">수량</span><div id="qty">-</div></div>
       </div>
-
     </div>
 
-    <!-- ▣ 바코드 스캔 -->
-    <div>
-      <div class="text-sm font-semibold text-slate-600 mb-1">바코드 스캔</div>
-      <input id="barcodeInput"
-        class="w-full px-3 py-3 text-lg border border-slate-300 rounded-lg
-               focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
-        placeholder="바코드를 스캔하세요" autofocus />
+    <!-- 바코드 -->
+    <input id="barcodeInput"
+      class="w-full px-4 py-4 text-lg border rounded-xl"
+      placeholder="바코드를 스캔하세요" autofocus />
+
+    <!-- scan.js용 DOM 유지 (숨김) -->
+    <div class="hidden">
+      <div id="recentScanStatus"></div>
+      <div id="recentScanDetail"></div>
+      <span id="progress_now"></span>
+      <span id="progress_total"></span>
+      <span id="progress_percent"></span>
+      <div id="progress_bar"></div>
+      <span id="error_count"></span>
+      <span id="dup_count"></span>
     </div>
-
-    <!-- ▣ 최근 스캔 + 누적 + 에러 + 중복 -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-
-      <!-- 최근 -->
-      <div class="bg-slate-50 rounded-xl border p-3">
-        <div class="text-xs text-slate-500 mb-1">최근 스캔 결과</div>
-        <div id="recentScanStatus" class="text-lg font-bold text-slate-700">-</div>
-        <div id="recentScanDetail"
-             class="text-[11px] text-slate-400 mt-1 leading-relaxed"></div>
-      </div>
-
-      <!-- 누적 + 퍼센트 -->
-      <div class="bg-slate-50 rounded-xl border p-3">
-        <div class="text-xs text-slate-500 mb-1">누적 진행</div>
-
-        <div class="flex items-baseline gap-2">
-          <span id="progress_now" class="text-2xl font-bold text-slate-800">0</span>
-          <span id="progress_total" class="text-xs text-slate-400">/ 0 품목</span>
-          <span id="progress_percent"
-                class="text-sm font-semibold text-emerald-700 ml-2">0%</span>
-        </div>
-
-        <div class="mt-2 h-1.5 rounded-full bg-slate-200">
-          <div id="progress_bar" class="h-full w-0 bg-sky-500"></div>
-        </div>
-      </div>
-
-      <!-- 에러 -->
-      <div class="bg-slate-50 rounded-xl border p-3">
-        <div class="text-xs text-slate-500 mb-1">미등록 바코드</div>
-        <div class="flex items-baseline gap-2">
-          <span id="error_count" class="text-2xl font-bold text-red-600">0</span>
-          <span class="text-xs text-slate-400">건</span>
-        </div>
-      </div>
-
-      <!-- 중복 -->
-      <div class="bg-slate-50 rounded-xl border p-3">
-        <div class="text-xs text-slate-500 mb-1">중복 바코드</div>
-        <div class="flex items-baseline gap-2">
-          <span id="dup_count" class="text-2xl font-bold text-amber-600">0</span>
-          <span class="text-xs text-slate-400">건</span>
-        </div>
-      </div>
-
-    </div>
-
   </section>
 
-  <!-- 📌 하단: 스캔 목록 + 출고 검수 목록 -->
-<section class="grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-0">
+  <!-- 하단 -->
+  <section class="flex flex-col gap-3 flex-1">
 
-  <!-- LEFT : 스캔된 목록 (스크롤 O) -->
-  <div class="col-span-1 bg-white rounded-xl shadow-sm border p-4 flex flex-col min-h-0">
-    <div class="text-xs text-slate-500 mb-2 shrink-0">스캔된 목록</div>
-
-    <!-- 🔽 여기만 스크롤 -->
-    <div id="scanList"
-         class="flex-1 min-h-0 overflow-auto text-xs text-slate-700 space-y-1">
-      <div class="text-slate-400">아직 스캔 없음…</div>
-    </div>
-  </div>
-
-  <!-- RIGHT : 출고 검수 목록 (스크롤 O) -->
-  <div class="col-span-2 bg-white rounded-xl shadow-sm border flex flex-col min-h-0">
-
-    <!-- 헤더 (고정) -->
-    <div class="px-4 py-2 border-b border-slate-200
-                text-[11px] text-slate-500 flex justify-between shrink-0">
-      <span>출고 검수 목록</span>
-      <span>정렬: 번호 ↑</span>
+    <!-- 최근 스캔 -->
+    <div class="bg-white rounded-xl border p-3">
+      <div class="text-xs text-slate-500 mb-2">스캔된 목록 (최근 3건)</div>
+      <div id="scanList" class="text-sm leading-6 text-slate-700">
+        <div class="text-slate-400">아직 스캔 없음…</div>
+      </div>
     </div>
 
-    <!-- 🔽 테이블 스크롤 영역 -->
-    <div class="flex-1 min-h-0 overflow-auto">
-      <div class="w-full overflow-x-auto">
+    <!-- 테이블 -->
+    <div class="bg-white rounded-xl border flex flex-col flex-1">
+      <div class="px-3 py-2 border-b text-xs text-slate-500">
+        입고 검수 목록
+      </div>
+      <div class="flex-1 overflow-auto">
         <table class="min-w-[900px] text-[12px]">
-          <thead class="bg-slate-50 sticky top-0 border-b border-slate-200 z-10">
-            <tr class="text-slate-500">
-              <th class="px-3 py-2 text-left whitespace-nowrap">번호</th>
-              <th class="px-3 py-2 text-left whitespace-nowrap">자재번호</th>
-              <th class="px-3 py-2 text-left whitespace-nowrap">박스번호</th>
-              <th class="px-3 py-2 text-left whitespace-nowrap">자재내역</th>
-              <th class="px-3 py-2 text-right whitespace-nowrap">SAP</th>
-              <th class="px-3 py-2 text-right whitespace-nowrap">WMS</th>
-              <th class="px-3 py-2 text-right whitespace-nowrap">비교</th>
-              <th class="px-3 py-2 text-left whitespace-nowrap">바코드</th>
-              <th class="px-3 py-2 text-left whitespace-nowrap">상태</th>
+          <thead class="bg-slate-50 sticky top-0">
+            <tr>
+              <th class="px-3 py-2">번호</th>
+              <th class="px-3 py-2">자재번호</th>
+              <th class="px-3 py-2">박스</th>
+              <th class="px-3 py-2">자재내역</th>
+              <th class="px-3 py-2 text-right">SAP</th>
+              <th class="px-3 py-2 text-right">WMS</th>
+              <th class="px-3 py-2 text-right">비교</th>
+              <th class="px-3 py-2">바코드</th>
+              <th class="px-3 py-2">상태</th>
             </tr>
           </thead>
-
-          <tbody id="scanTableBody" class="divide-y divide-slate-200"></tbody>
+          <tbody id="scanTableBody"></tbody>
         </table>
       </div>
     </div>
-  </div>
 
-</section>
-
-
+  </section>
 </main>
 
-<!-- ===== 특이사항 모달 ===== -->
+<!-- 특이사항 모달 -->
 <div id="noticeModal"
-     class="fixed inset-0 bg-black/60 hidden flex justify-center items-center z-[9999]">
-  <div class="bg-white rounded-2xl p-8 w-[90%] max-w-[560px] shadow-2xl animate-fadeIn">
-
-    <h2 class="text-2xl font-extrabold mb-5 text-center text-red-600">
-      ⚠ 특이사항 안내
-    </h2>
-
-    <div id="noticeText"
-         class="text-lg leading-relaxed text-slate-800 whitespace-pre-line text-center"></div>
-
+     class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-50">
+  <div class="bg-white rounded-2xl p-6 w-[90%] max-w-md">
+    <h2 class="text-lg font-bold text-red-600 mb-3 text-center">⚠ 특이사항</h2>
+    <div id="noticeText" class="text-sm text-center whitespace-pre-line"></div>
     <button id="noticeCloseBtn"
-      class="mt-8 w-full py-3 text-lg bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-semibold">
-      확인했습니다
+      class="mt-5 w-full py-3 bg-sky-600 text-white rounded-xl">
+      확인
     </button>
   </div>
 </div>
