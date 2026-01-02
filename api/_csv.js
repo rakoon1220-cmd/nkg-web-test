@@ -3,7 +3,15 @@
 // Vercel / Node18+ 에서는 fetch 내장
 export async function loadCsv(url) {
   try {
-    const res = await fetch(url);
+    // ✅ 강제 캐시 무시 (Node fetch / 프록시 캐시 방지)
+    const res = await fetch(url, {
+      cache: "no-store",
+      headers: {
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+      },
+    });
+
     if (!res.ok) {
       throw new Error("CSV 로딩 실패: HTTP " + res.status);
     }
@@ -37,21 +45,17 @@ function parseCsv(text) {
         inQuotes = !inQuotes;
       }
     } else if (ch === "\r") {
-      // 무시
       continue;
     } else if (ch === "\n") {
       if (inQuotes) {
-        // 셀 내부 줄바꿈
         field += "\n";
       } else {
-        // 행 끝
         row.push(field);
         rows.push(row);
         row = [];
         field = "";
       }
     } else if (ch === "," && !inQuotes) {
-      // 셀 끝
       row.push(field);
       field = "";
     } else {
@@ -68,7 +72,7 @@ function parseCsv(text) {
   const header = rows[0].map(h => h.trim());
   const dataRows = rows.slice(1);
 
-  const result = dataRows
+  return dataRows
     .filter(r => r.some(v => v && String(v).trim() !== ""))
     .map(cols => {
       const obj = {};
@@ -77,6 +81,4 @@ function parseCsv(text) {
       });
       return obj;
     });
-
-  return result;
 }
