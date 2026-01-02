@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>출고/전체보기 · 남경 검수시스템</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    body { background: #eef1f5; }
+
+    /* ===== 애니메이션 ===== */
+    @keyframes fadeIn {
+      from { opacity:0; transform:translateY(20px) scale(0.95); }
+      to   { opacity:1; transform:translateY(0) scale(1); }
+    }
+    .animate-fadeIn { animation: fadeIn 0.25s ease-out; }
+
+    /* ===== 최근 스캔 3줄 고정 ===== */
+    #scanList {
+      max-height: 4.5rem;   /* 1.5rem × 3줄 */
+      overflow: hidden;
+    }
+
+    /* ✅ out.html은 "미입고" 행도 전부 보여야 하므로
+       tr:has(span.text-blue-600){display:none;} 같은 숨김 규칙 없음 */
+
+    /* ===== 자재번호 열 숨김 ===== */
+    th:nth-child(2),
+    td:nth-child(2) {
+      display: none;
+    }
+  </style>
+</head>
+
+<body class="min-h-screen bg-slate-100">
+
+<!-- ▣ NAV -->
+<nav class="bg-[#0A1833] text-white fixed top-0 w-full z-50 shadow">
+  <div class="max-w-6xl mx-auto px-4">
+    <div class="flex justify-between items-center h-14">
+      <a href="index.html" class="flex items-center gap-2">
+        <div class="w-8 h-8 bg-sky-500 rounded-lg flex items-center justify-center text-xs font-bold">NK</div>
+        <span class="font-semibold text-sm">남경 검수시스템</span>
+      </a>
+      <button id="mobileNavBtn" class="md:hidden text-2xl">☰</button>
+    </div>
+  </div>
+
+  <div id="mobileNavMenu"
+       class="md:hidden hidden bg-[#0A1833] text-white px-6 py-3 space-y-3 text-sm">
+    <a href="index.html">홈</a>
+    <a href="scan.html">출고검수(기존)</a>
+    <a href="IN.html">입고검수</a>
+    <a href="out.html" class="text-sky-300 font-semibold">출고/전체보기</a>
+  </div>
+</nav>
+
+<div class="h-14"></div>
+
+<script>
+  mobileNavBtn.onclick = () => mobileNavMenu.classList.toggle("hidden");
+</script>
+
+<!-- ▣ MAIN -->
+<main class="max-w-[1500px] mx-auto p-3 space-y-3 min-h-[calc(100dvh-56px)] flex flex-col">
+
+  <!-- ================= 상단 ================= -->
+  <section class="bg-white rounded-xl border p-3 space-y-4">
+
+    <!-- 인보이스 + 버튼 -->
+    <div class="grid grid-cols-1 gap-2">
+
+      <input id="invInput"
+        class="w-full px-4 py-4 text-2xl font-extrabold tracking-[0.12em]
+               border-2 border-slate-600 rounded-2xl
+               focus:ring-4 focus:ring-sky-500 text-center bg-slate-50"
+        placeholder="INV NO"
+        autocomplete="off"
+        inputmode="numeric" />
+
+      <!-- 조회 | 특이사항 -->
+      <div class="grid grid-cols-2 divide-x divide-white rounded-2xl overflow-hidden shadow-sm">
+        <button id="btnLoadInv"
+          class="py-3 text-base font-extrabold bg-sky-600 hover:bg-sky-700 text-white">
+          조회
+        </button>
+        <button id="btnNoticeOpen"
+          class="py-3 text-base font-extrabold bg-orange-500 hover:bg-orange-600 text-white">
+          특이사항
+        </button>
+      </div>
+    </div>
+
+    <!-- 요약 -->
+    <div class="bg-slate-50 border rounded-xl p-3 space-y-2 text-sm">
+      <div class="grid grid-cols-2 gap-2">
+        <div><div class="text-[11px] text-slate-500">인보이스</div><div id="inv_no">-</div></div>
+        <div><div class="text-[11px] text-slate-500">국가</div><div id="country">-</div></div>
+        <div><div class="text-[11px] text-slate-500">상차위치</div><div id="load_loc">-</div></div>
+        <div><div class="text-[11px] text-slate-500">상차시간</div><div id="load_time">-</div></div>
+      </div>
+      <div class="grid grid-cols-3 gap-2">
+        <div><div class="text-[11px] text-slate-500">컨테이너</div><div id="container">-</div></div>
+        <div><div class="text-[11px] text-slate-500">CBM</div><div id="cbm">-</div></div>
+        <div><div class="text-[11px] text-slate-500">수량</div><div id="qty">-</div></div>
+      </div>
+    </div>
+
+    <!-- 바코드 -->
+    <input id="barcodeInput"
+      class="w-full px-4 py-4 text-lg border rounded-xl"
+      placeholder="바코드를 스캔하세요" autofocus />
+
+    <!-- scan.js용 DOM 유지 (숨김) -->
+    <div class="hidden">
+      <div id="recentScanStatus"></div>
+      <div id="recentScanDetail"></div>
+      <span id="progress_now"></span>
+      <span id="progress_total"></span>
+      <span id="progress_percent"></span>
+      <div id="progress_bar"></div>
+      <span id="error_count"></span>
+      <span id="dup_count"></span>
+    </div>
+  </section>
+
+  <!-- ================= 하단 ================= -->
+  <section class="flex flex-col gap-3 flex-1">
+
+    <!-- 최근 스캔 -->
+    <div class="bg-white rounded-xl border p-3">
+      <div class="text-xs text-slate-500 mb-2">스캔된 목록 (최근 3건)</div>
+      <div id="scanList" class="text-sm leading-6 text-slate-700">
+        <div class="text-slate-400">아직 스캔 없음…</div>
+      </div>
+    </div>
+
+    <!-- 테이블 -->
+    <div class="bg-white rounded-xl border flex flex-col flex-1">
+      <div class="px-3 py-2 border-b text-xs text-slate-500 flex justify-between">
+        <span>출고/전체 목록</span>
+        <span class="text-slate-400">가로 스크롤</span>
+      </div>
+      <div class="flex-1 overflow-auto">
+        <table class="min-w-[900px] text-[12px]">
+          <thead class="bg-slate-50 sticky top-0">
+            <tr>
+              <th class="px-3 py-2">번호</th>
+              <th class="px-3 py-2">자재번호</th>
+              <th class="px-3 py-2">박스번호</th>
+              <th class="px-3 py-2">자재내역</th>
+              <th class="px-3 py-2 text-right">SAP</th>
+              <th class="px-3 py-2 text-right">WMS</th>
+              <th class="px-3 py-2 text-right">비교</th>
+              <th class="px-3 py-2">바코드</th>
+              <th class="px-3 py-2">상태</th>
+            </tr>
+          </thead>
+          <tbody id="scanTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </section>
+</main>
+
+<!-- ===== 특이사항 모달 ===== -->
+<div id="noticeModal"
+     class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-50">
+  <div class="bg-white rounded-2xl p-6 w-[90%] max-w-md animate-fadeIn">
+    <h2 class="text-lg font-bold text-red-600 mb-3 text-center">⚠ 특이사항</h2>
+    <div id="noticeText" class="text-sm text-center whitespace-pre-line"></div>
+    <button id="noticeCloseBtn"
+      class="mt-5 w-full py-3 bg-sky-600 text-white rounded-xl">
+      확인
+    </button>
+  </div>
+</div>
+
+<!-- 기존 scan.js 그대로 -->
+<script src="scan.js"></script>
+</body>
+</html>
