@@ -16,7 +16,18 @@ function normalizeInv(v) {
   return v.toString().replace(/[^0-9]/g, "").replace(/^0+/, "");
 }
 
+// ✅ Google pub CSV 캐시 깨기용
+function bust(url) {
+  const t = Date.now();
+  return url.includes("?") ? `${url}&t=${t}` : `${url}?t=${t}`;
+}
+
 export default async function handler(req, res) {
+  // ✅ API 응답 캐시 금지 (브라우저/프록시/Vercel edge 등)
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+
   const { inv } = req.query;
 
   if (!inv) {
@@ -24,10 +35,11 @@ export default async function handler(req, res) {
   }
 
   try {
+    // ✅ 각 CSV URL에 timestamp 붙여서 최신 강제
     const [sapRows, wmsRows, barcodeRows] = await Promise.all([
-      loadCsv(SAP_ITEM_URL),
-      loadCsv(WMS_URL),
-      loadCsv(BARCODE_URL),
+      loadCsv(bust(SAP_ITEM_URL)),
+      loadCsv(bust(WMS_URL)),
+      loadCsv(bust(BARCODE_URL)),
     ]);
 
     const targetInv = normalizeInv(inv);
@@ -60,7 +72,7 @@ export default async function handler(req, res) {
       const barcode = (r["바코드"] || "").trim();
       if (!mat || !barcode) return;
 
-      const key = `${mat}__${box}`; // box가 빈값이면 그냥 "" 포함
+      const key = `${mat}__${box}`;
       if (!barcodeMap[key]) {
         barcodeMap[key] = {
           barcode,
