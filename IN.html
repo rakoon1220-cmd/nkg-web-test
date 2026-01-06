@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>출고/전체보기 · 남경 검수시스템</title>
+  <title>입고검수 · 남경 검수시스템</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <script src="https://cdn.tailwindcss.com"></script>
 
@@ -18,12 +18,9 @@
 
     /* ===== 최근 스캔 3줄 고정 ===== */
     #scanList {
-      max-height: 4.5rem;   /* 1.5rem × 3줄 */
+      max-height: 4.5rem;
       overflow: hidden;
     }
-
-    /* ✅ out.html은 "미입고" 행도 전부 보여야 하므로
-       tr:has(span.text-blue-600){display:none;} 같은 숨김 규칙 없음 */
 
     /* ===== 자재번호 열 숨김 ===== */
     th:nth-child(2),
@@ -51,15 +48,19 @@
        class="md:hidden hidden bg-[#0A1833] text-white px-6 py-3 space-y-3 text-sm">
     <a href="index.html">홈</a>
     <a href="scan.html">출고검수(기존)</a>
-    <a href="IN.html">입고검수</a>
-    <a href="out.html" class="text-sky-300 font-semibold">출고/전체보기</a>
+    <a href="IN.html" class="text-sky-300 font-semibold">입고검수</a>
+    <a href="out.html">출고/전체보기</a>
   </div>
 </nav>
 
 <div class="h-14"></div>
 
 <script>
-  mobileNavBtn.onclick = () => mobileNavMenu.classList.toggle("hidden");
+  const mobileNavBtn = document.getElementById("mobileNavBtn");
+  const mobileNavMenu = document.getElementById("mobileNavMenu");
+  if (mobileNavBtn && mobileNavMenu) {
+    mobileNavBtn.onclick = () => mobileNavMenu.classList.toggle("hidden");
+  }
 </script>
 
 <!-- ▣ MAIN -->
@@ -139,7 +140,7 @@
     <!-- 테이블 -->
     <div class="bg-white rounded-xl border flex flex-col flex-1">
       <div class="px-3 py-2 border-b text-xs text-slate-500 flex justify-between">
-        <span>출고/전체 목록</span>
+        <span>입고 검수 목록</span>
         <span class="text-slate-400">가로 스크롤</span>
       </div>
       <div class="flex-1 overflow-auto">
@@ -178,7 +179,44 @@
   </div>
 </div>
 
-<!-- 기존 scan.js 그대로 -->
+<!-- ✅ 기존 scan.js 그대로 -->
 <script src="scan.js"></script>
+
+<!-- ✅ 추가: WMS=0 (미입고) 행만 숨김 -->
+<script>
+  function hideZeroWmsRows() {
+    const tbody = document.getElementById("scanTableBody");
+    if (!tbody) return;
+
+    const rows = tbody.querySelectorAll("tr");
+    rows.forEach(tr => {
+      const tds = tr.querySelectorAll("td");
+      if (tds.length < 6) return;
+
+      // 컬럼: 0번호,1자재번호(숨김),2박스,3내역,4SAP,5WMS
+      const wmsText = (tds[5].innerText || "").trim();
+      const wms = Number(wmsText.replace(/[^0-9.-]/g, ""));
+
+      if (wms === 0) tr.style.display = "none";
+    });
+  }
+
+  // scan.js가 invoice 조회 후 표를 그릴 때까지 기다렸다가 숨김 적용
+  (function hookLoadInvoice() {
+    const orig = window.loadInvoice;
+    if (typeof orig === "function") {
+      window.loadInvoice = async function() {
+        const r = await orig.apply(this, arguments);
+        hideZeroWmsRows();
+        return r;
+      };
+    } else {
+      // loadInvoice가 아직 없으면 잠깐 후 재시도 (scan.js 로드 타이밍 대비)
+      setTimeout(hookLoadInvoice, 50);
+    }
+  })();
+</script>
+
 </body>
 </html>
+
