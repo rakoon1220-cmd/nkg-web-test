@@ -1,193 +1,169 @@
-// /api/in-detail.js — 입고검수(IN) 인보이스 상세 (최적화 안정판)
+// in-scan.js — IN.html 전용 (API 기반, 빠름)
 
-const SAP_CSV_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAWmUNAeyndXfdxHjR-1CakW_Tm3OzmMTng5RkB53umXwucqpxABqMMcB0y8H5cHNg7aoHYqFztz0F/pub?gid=221455512&single=true&output=csv";
+const API_BASE = window.location.origin;
+const API_IN_DETAIL = `${API_BASE}/api/in-detail`;
 
-const WMS_CSV_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAWmUNAeyndXfdxHjR-1CakW_Tm3OzmMTng5RkB53umXwucqpxABqMMcB0y8H5cHNg7aoHYqFztz0F/pub?gid=1850233363&single=true&output=csv";
+const $ = (id) => document.getElementById(id);
 
-export default async function handler(req, res) {
-  try {
-    // 1) invoice 정규화 (숫자만)
-    let invoice = String(req.query.invoice || "").trim();
-    invoice = invoice.replace(/[^0-9]/g, "");
-    if (!invoice) {
-      return res.status(400).json({ ok: false, msg: "invoice 값이 없습니다. 예: /api/in-detail?invoice=775803" });
-    }
+let currentItems = [];
+let boxMap = new Map(); // box -> item
 
-    // 2) CSV 로드 (병렬)
-    const [sapResp, wmsResp] = await Promise.all([
-      fetch(SAP_CSV_URL),
-      fetch(WMS_CSV_URL),
-    ]);
+function setText(id, v) {
+  const el = $(id);
+  if (el) el.textContent = (v === undefined || v === null || v === "") ? "-" : String(v);
+}
 
-    if (!sapResp.ok) throw new Error("SAP CSV 요청 실패: " + sapResp.status);
-    if (!wmsResp.ok) throw new Error("WMS CSV 요청 실패: " + wmsResp.status);
+function renderSummary(summary) {
+  setText("inv_no", summary.invoice || "-");
+  setText("country", summary.country || "-");
+  setText("load_loc", summary.load_loc || "-");
+  setText("load_time", summary.load_time || "-");
+  setText("container", summary.container || "-");
+  setText("cbm", summary.cbm || "-");
+  setText("qty", summary.qty ?? 0);
+}
 
-    const [sapText, wmsText] = await Promise.all([sapResp.text(), wmsResp.text()]);
+function renderNotice(summary) {
+  const txt = (summary.notice || "").trim();
+  $("noticeText").textContent = txt ? txt : "특이사항 없음";
+}
 
-    const sapRows = parseCSV(sapText).slice(1); // 헤더 제외
-    const wmsRows = parseCSV(wmsText).slice(1);
-
-    // 3) WMS → Map(keyFull → 입고수량 합계)
-    const wmsMap = new Map();
-    for (const r of wmsRows) {
-      if (!r || r.length < 5) continue;
-      const keyFull = clean(r[0]);       // A: keyFull
-      if (!keyFull) continue;
-      const qty = toNumber(r[4]);        // E: WMS 수량
-      wmsMap.set(keyFull, (wmsMap.get(keyFull) || 0) + qty);
-    }
-
-    // 4) SAP → invoice 필터 + 상세내역
-    const items = [];
-
-    // 요약(상단 카드용)
-    let summary = {
-      invoice,
-      date: "-",
-      country: "-",
-      container: "-",
-      cbm: "-",
-      load_loc: "-",   // 네 IN.html 상단에 맞춰 필드명 유지
-      load_time: "-",  // SAP에 없으면 "-" 유지
-      qty: 0,          // SAP 총수량
-      wmsQty: 0,       // WMS 총수량
-      notice: "",      // 특이사항(여러개면 합쳐서)
-    };
-
-    const noticeSet = new Set();
-
-    for (const r of sapRows) {
-      if (!r || r.length < 24) continue;
-
-      const keyFull = clean(r[0]);                 // A: keyFull (inv+자재 등)
-      const inv = clean(r[1]).replace(/[^0-9]/g, ""); // B: invoice (정규화)
-      if (inv !== invoice) continue;
-
-      const date = clean(r[4]);         // E: 출고일(또는 일자)
-      const country = clean(r[5]);      // F: 국가
-      const code = clean(r[6]);         // G: 자재코드
-      const name = clean(r[7]);         // H: 자재내역
-      const sapQty = toNumber(r[8]);    // I: SAP 수량
-      const box = clean(r[9]);          // J: 박스번호
-      const container = clean(r[14]);   // O: 컨테이너
-      const work = clean(r[18]);        // S: 작업여부
-      const cbm = clean(r[19]);         // T: CBM (문자 유지)
-      const loc = clean(r[22]);         // W: 상차/작업 위치(네 데이터 기준)
-      const note = clean(r[23]);        // X: 특이사항
-
-      const wmsQty = toNumber(wmsMap.get(keyFull)); // WMS 입고 수량
-      const diff = wmsQty - sapQty;
-
-      // 상태(프론트에서 색칠하기 좋게)
-      // - diff < 0 : 미입고(부족)
-      // - diff == 0: 입고완료
-      // - diff > 0 : 초과(또는 오류)
-      let status = "입고완료";
-      let statusClass = "text-emerald-600";
-      if (diff < 0) { status = "미입고"; statusClass = "text-blue-600"; }
-      else if (diff > 0) { status = "초과"; statusClass = "text-rose-600"; }
-
-      items.push({
-        no: items.length + 1,
-        keyFull,          // 바코드/키(숨김열로 써도 됨)
-        invoice: inv,
-        date,
-        country,
-        code,
-        name,
-        box,
-        sapQty,
-        wmsQty,
-        diff,
-        container,
-        cbm,
-        loc,
-        work,
-        note,
-        status,
-        statusClass,
-      });
-
-      // summary 채우기(첫 행 기반)
-      if (summary.date === "-" && date) summary.date = date;
-      if (summary.country === "-" && country) summary.country = country;
-      if (summary.container === "-" && container) summary.container = container;
-      if (summary.cbm === "-" && cbm) summary.cbm = cbm;
-      if (summary.load_loc === "-" && loc) summary.load_loc = loc;
-
-      summary.qty += sapQty;
-      summary.wmsQty += wmsQty;
-
-      if (note) noticeSet.add(note);
-    }
-
-    summary.notice = Array.from(noticeSet).join("\n");
-
-    return res.status(200).json({
-      ok: true,
-      invoice,
-      summary,
-      rows: items.length,
-      data: items,
-    });
-
-  } catch (err) {
-    console.error("IN-DETAIL API ERROR:", err);
-    return res.status(500).json({ ok: false, error: err.message || String(err) });
+function buildMaps(items) {
+  boxMap = new Map();
+  for (const it of items) {
+    if (it.box) boxMap.set(String(it.box).trim(), it);
   }
 }
 
-/* ===========================
-   CSV 파서 (따옴표/콤마/줄바꿈 100%)
-=========================== */
-function parseCSV(text) {
-  text = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  const rows = [];
-  let row = [];
-  let field = "";
-  let inQuotes = false;
+function renderTable(items) {
+  const tbody = $("scanTableBody");
+  if (!tbody) return;
 
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-
-    if (c === '"') {
-      if (inQuotes && text[i + 1] === '"') {
-        field += '"';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (c === "," && !inQuotes) {
-      row.push(field);
-      field = "";
-    } else if (c === "\n" && !inQuotes) {
-      row.push(field);
-      rows.push(row);
-      row = [];
-      field = "";
-    } else {
-      field += c;
-    }
+  if (!items.length) {
+    tbody.innerHTML = `<tr><td class="px-3 py-3 text-slate-400" colspan="9">데이터 없음</td></tr>`;
+    return;
   }
 
-  if (field !== "" || row.length) {
-    row.push(field);
-    rows.push(row);
+  let html = "";
+  for (const it of items) {
+    html += `
+      <tr class="border-b">
+        <td class="px-3 py-2">${it.no}</td>
+        <td class="px-3 py-2">${escapeHtml(it.code || "")}</td>
+        <td class="px-3 py-2">${escapeHtml(it.box || "")}</td>
+        <td class="px-3 py-2">${escapeHtml(it.name || "")}</td>
+        <td class="px-3 py-2 text-right">${num(it.sapQty)}</td>
+        <td class="px-3 py-2 text-right">${num(it.wmsQty)}</td>
+        <td class="px-3 py-2 text-right ${it.diff === 0 ? "text-emerald-600" : (it.diff < 0 ? "text-blue-600" : "text-rose-600")}">${num(it.diff)}</td>
+        <td class="px-3 py-2">${escapeHtml(it.keyFull || "")}</td>
+        <td class="px-3 py-2"><span class="${it.statusClass || ""} font-bold">${escapeHtml(it.status || "")}</span></td>
+      </tr>
+    `;
   }
-  return rows;
+
+  tbody.innerHTML = html;
 }
 
-function clean(str) {
-  return String(str || "")
-    .replace(/\uFEFF/g, "")
-    .replace(/\r/g, "")
-    .replace(/\n/g, " ")
-    .trim();
+function pushRecentScan(text) {
+  const list = $("scanList");
+  if (!list) return;
+
+  // 최근 3건만 표시
+  const now = new Date();
+  const t = `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}:${String(now.getSeconds()).padStart(2,"0")}`;
+
+  const div = document.createElement("div");
+  div.textContent = `${t}  ${text}`;
+  div.className = "truncate";
+
+  // 첫 줄에 추가
+  if (list.firstElementChild && list.firstElementChild.classList.contains("text-slate-400")) {
+    list.innerHTML = "";
+  }
+  list.prepend(div);
+
+  while (list.children.length > 3) list.removeChild(list.lastElementChild);
 }
 
-function toNumber(v) {
-  const n = parseFloat(String(v || "").replace(/,/g, ""));
-  return isNaN(n) ? 0 : n;
+async function loadInvoice() {
+  const inv = String($("invInput").value || "").trim().replace(/[^0-9]/g, "");
+  if (!inv) {
+    alert("INV NO를 입력하세요.");
+    return;
+  }
+
+  // 로딩 표시
+  $("scanTableBody").innerHTML = `<tr><td class="px-3 py-3 text-slate-400" colspan="9">불러오는 중...</td></tr>`;
+
+  const url = `${API_IN_DETAIL}?invoice=${encodeURIComponent(inv)}`;
+  const res = await fetch(url, { cache: "no-store" }); // 최신성 우선
+  const json = await res.json();
+
+  if (!json.ok) {
+    $("scanTableBody").innerHTML = `<tr><td class="px-3 py-3 text-rose-600" colspan="9">오류: ${escapeHtml(json.msg || json.error || "unknown")}</td></tr>`;
+    return;
+  }
+
+  currentItems = json.data || [];
+  buildMaps(currentItems);
+
+  renderSummary(json.summary || {});
+  renderNotice(json.summary || {});
+  renderTable(currentItems);
+
+  pushRecentScan(`INV 조회 완료: ${inv} (rows ${json.rows})`);
+  $("barcodeInput").focus();
 }
+
+function onScanEnter(e) {
+  if (e.key !== "Enter") return;
+
+  const code = String($("barcodeInput").value || "").trim();
+  if (!code) return;
+
+  $("barcodeInput").value = "";
+
+  // 기본은 “박스번호 스캔”이라고 가정
+  const it = boxMap.get(code);
+
+  if (!it) {
+    pushRecentScan(`❌ 미매칭: ${code}`);
+    return;
+  }
+
+  pushRecentScan(`✅ ${it.box} | ${it.name} | diff:${it.diff}`);
+}
+
+function openNotice() {
+  $("noticeModal").classList.remove("hidden");
+}
+function closeNotice() {
+  $("noticeModal").classList.add("hidden");
+}
+
+function num(v) {
+  const n = Number(v);
+  if (!isFinite(n)) return "-";
+  return String(n);
+}
+
+function escapeHtml(s) {
+  return String(s || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+  $("btnLoadInv")?.addEventListener("click", loadInvoice);
+  $("invInput")?.addEventListener("keydown", (e) => { if (e.key === "Enter") loadInvoice(); });
+
+  $("barcodeInput")?.addEventListener("keydown", onScanEnter);
+
+  $("btnNoticeOpen")?.addEventListener("click", openNotice);
+  $("noticeCloseBtn")?.addEventListener("click", closeNotice);
+
+  // 인풋 바로 포커스
+  $("invInput")?.focus();
+});

@@ -1,8 +1,10 @@
-// in-scan.js — IN.html 전용 (API 기반, 빠름)
+// in-scan.js — ✅ 최종본
+// - 미입고(WMS=0) 행만 숨김
+// - 초과입고/부분입고/입고완료는 전부 표시
+// - 상태는 diff 기준으로 프론트에서 한 번 더 보정(안전)
 
 const API_BASE = window.location.origin;
 const API_IN_DETAIL = `${API_BASE}/api/in-detail`;
-
 const $ = (id) => document.getElementById(id);
 
 let currentItems = [];
@@ -25,7 +27,8 @@ function renderSummary(summary) {
 
 function renderNotice(summary) {
   const txt = (summary.notice || "").trim();
-  $("noticeText").textContent = txt ? txt : "특이사항 없음";
+  const el = $("noticeText");
+  if (el) el.textContent = txt ? txt : "특이사항 없음";
 }
 
 function buildMaps(items) {
@@ -33,6 +36,14 @@ function buildMaps(items) {
   for (const it of items) {
     if (it.box) boxMap.set(String(it.box).trim(), it);
   }
+}
+
+function normalizeStatus(sapQty, wmsQty) {
+  const diff = wmsQty - sapQty;
+  if (wmsQty === 0) return { status: "미입고", cls: "text-slate-500", diff };
+  if (diff > 0) return { status: "초과입고", cls: "text-rose-600", diff };
+  if (diff < 0) return { status: "부분입고", cls: "text-amber-600", diff };
+  return { status: "입고완료", cls: "text-emerald-600", diff };
 }
 
 function renderTable(items) {
@@ -45,20 +56,49 @@ function renderTable(items) {
   }
 
   let html = "";
+  let shown = 0;
+
   for (const it of items) {
+    const sap = toNum(it.sapQty);
+    const wms = toNum(it.wmsQty);
+
+    // ✅ 미입고만 숨김
+    if (wms === 0) continue;
+
+    const { status, cls, diff } = normalizeStatus(sap, wms);
+
+    // 비교 칸 표시
+    let diffText = "0";
+    let diffClass = "text-emerald-600 font-bold";
+
+    if (diff > 0) {
+      diffText = `+${diff}`;
+      diffClass = "text-rose-600 font-bold";
+    } else if (diff < 0) {
+      diffText = "부분입고"; // 숫자 숨김
+      diffClass = "text-amber-600 font-bold";
+    }
+
+    shown++;
+
     html += `
       <tr class="border-b">
-        <td class="px-3 py-2">${it.no}</td>
+        <td class="px-3 py-2">${escapeHtml(it.no)}</td>
         <td class="px-3 py-2">${escapeHtml(it.code || "")}</td>
         <td class="px-3 py-2">${escapeHtml(it.box || "")}</td>
         <td class="px-3 py-2">${escapeHtml(it.name || "")}</td>
-        <td class="px-3 py-2 text-right">${num(it.sapQty)}</td>
-        <td class="px-3 py-2 text-right">${num(it.wmsQty)}</td>
-        <td class="px-3 py-2 text-right ${it.diff === 0 ? "text-emerald-600" : (it.diff < 0 ? "text-blue-600" : "text-rose-600")}">${num(it.diff)}</td>
+        <td class="px-3 py-2 text-right">${sap}</td>
+        <td class="px-3 py-2 text-right">${wms}</td>
+        <td class="px-3 py-2 text-right ${diffClass}">${diffText}</td>
         <td class="px-3 py-2">${escapeHtml(it.keyFull || "")}</td>
-        <td class="px-3 py-2"><span class="${it.statusClass || ""} font-bold">${escapeHtml(it.status || "")}</span></td>
+        <td class="px-3 py-2"><span class="${cls} font-bold">${status}</span></td>
       </tr>
     `;
+  }
+
+  if (!shown) {
+    tbody.innerHTML = `<tr><td class="px-3 py-3 text-slate-400" colspan="9">표시할 데이터 없음 (미입고=WMS 0은 숨김)</td></tr>`;
+    return;
   }
 
   tbody.innerHTML = html;
@@ -68,15 +108,16 @@ function pushRecentScan(text) {
   const list = $("scanList");
   if (!list) return;
 
-  // 최근 3건만 표시
   const now = new Date();
-  const t = `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}:${String(now.getSeconds()).padStart(2,"0")}`;
+  const t =
+    `${String(now.getHours()).padStart(2, "0")}:` +
+    `${String(now.getMinutes()).padStart(2, "0")}:` +
+    `${String(now.getSeconds()).padStart(2, "0")}`;
 
   const div = document.createElement("div");
   div.textContent = `${t}  ${text}`;
   div.className = "truncate";
 
-  // 첫 줄에 추가
   if (list.firstElementChild && list.firstElementChild.classList.contains("text-slate-400")) {
     list.innerHTML = "";
   }
@@ -86,17 +127,13 @@ function pushRecentScan(text) {
 }
 
 async function loadInvoice() {
-  const inv = String($("invInput").value || "").trim().replace(/[^0-9]/g, "");
-  if (!inv) {
-    alert("INV NO를 입력하세요.");
-    return;
-  }
+  const inv = String($("invInput")?.value || "").trim().replace(/[^0-9]/g, "");
+  if (!inv) return alert("INV NO를 입력하세요.");
 
-  // 로딩 표시
   $("scanTableBody").innerHTML = `<tr><td class="px-3 py-3 text-slate-400" colspan="9">불러오는 중...</td></tr>`;
 
   const url = `${API_IN_DETAIL}?invoice=${encodeURIComponent(inv)}`;
-  const res = await fetch(url, { cache: "no-store" }); // 최신성 우선
+  const res = await fetch(url, { cache: "no-store" });
   const json = await res.json();
 
   if (!json.ok) {
@@ -112,39 +149,33 @@ async function loadInvoice() {
   renderTable(currentItems);
 
   pushRecentScan(`INV 조회 완료: ${inv} (rows ${json.rows})`);
-  $("barcodeInput").focus();
+  $("barcodeInput")?.focus();
 }
 
 function onScanEnter(e) {
   if (e.key !== "Enter") return;
 
-  const code = String($("barcodeInput").value || "").trim();
+  const code = String($("barcodeInput")?.value || "").trim();
   if (!code) return;
 
   $("barcodeInput").value = "";
 
-  // 기본은 “박스번호 스캔”이라고 가정
   const it = boxMap.get(code);
+  if (!it) return pushRecentScan(`❌ 미매칭: ${code}`);
 
-  if (!it) {
-    pushRecentScan(`❌ 미매칭: ${code}`);
-    return;
-  }
+  const sap = toNum(it.sapQty);
+  const wms = toNum(it.wmsQty);
+  const { status, diff } = normalizeStatus(sap, wms);
 
-  pushRecentScan(`✅ ${it.box} | ${it.name} | diff:${it.diff}`);
+  pushRecentScan(`✅ ${it.box} | ${it.name} | ${status} (diff:${diff})`);
 }
 
-function openNotice() {
-  $("noticeModal").classList.remove("hidden");
-}
-function closeNotice() {
-  $("noticeModal").classList.add("hidden");
-}
+function openNotice() { $("noticeModal")?.classList.remove("hidden"); }
+function closeNotice() { $("noticeModal")?.classList.add("hidden"); }
 
-function num(v) {
+function toNum(v) {
   const n = Number(v);
-  if (!isFinite(n)) return "-";
-  return String(n);
+  return Number.isFinite(n) ? n : 0;
 }
 
 function escapeHtml(s) {
@@ -164,6 +195,5 @@ window.addEventListener("DOMContentLoaded", () => {
   $("btnNoticeOpen")?.addEventListener("click", openNotice);
   $("noticeCloseBtn")?.addEventListener("click", closeNotice);
 
-  // 인풋 바로 포커스
   $("invInput")?.focus();
 });
