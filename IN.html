@@ -2,25 +2,35 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>입고검수 스캔 · 남경 검수시스템</title>
+  <title>출고/전체보기 · 남경 검수시스템</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
-  body { background:#eef1f5; }
+    body { background: #eef1f5; }
 
-  @keyframes fadeIn{
-    from{opacity:0; transform:translateY(20px) scale(0.95);}
-    to{opacity:1; transform:translateY(0) scale(1);}
-  }
-  .animate-fadeIn{ animation: fadeIn 0.25s ease-out; }
+    /* ===== 애니메이션 ===== */
+    @keyframes fadeIn {
+      from { opacity:0; transform:translateY(20px) scale(0.95); }
+      to   { opacity:1; transform:translateY(0) scale(1); }
+    }
+    .animate-fadeIn { animation: fadeIn 0.25s ease-out; }
 
-  #scanList{ max-height:4.5rem; overflow:hidden; }
+    /* ===== 최근 스캔 3줄 고정 ===== */
+    #scanList {
+      max-height: 4.5rem;   /* 1.5rem × 3줄 */
+      overflow: hidden;
+    }
 
-  /* 자재번호 열 숨김 */
-  th:nth-child(2), td:nth-child(2){ display:none; }
-</style>
+    /* ✅ out.html은 "미입고" 행도 전부 보여야 하므로
+       tr:has(span.text-blue-600){display:none;} 같은 숨김 규칙 없음 */
 
+    /* ===== 자재번호 열 숨김 ===== */
+    th:nth-child(2),
+    td:nth-child(2) {
+      display: none;
+    }
+  </style>
 </head>
 
 <body class="min-h-screen bg-slate-100">
@@ -40,20 +50,16 @@
   <div id="mobileNavMenu"
        class="md:hidden hidden bg-[#0A1833] text-white px-6 py-3 space-y-3 text-sm">
     <a href="index.html">홈</a>
-    <a href="scan.html">출고검수</a>
-    <a href="IN.html" class="text-sky-300 font-semibold">입고검수</a>
+    <a href="scan.html">출고검수(기존)</a>
+    <a href="IN.html">입고검수</a>
+    <a href="out.html" class="text-sky-300 font-semibold">출고/전체보기</a>
   </div>
 </nav>
 
 <div class="h-14"></div>
 
 <script>
-  // 모바일 메뉴 토글 (안전하게)
-  const mobileNavBtn = document.getElementById("mobileNavBtn");
-  const mobileNavMenu = document.getElementById("mobileNavMenu");
-  if (mobileNavBtn && mobileNavMenu) {
-    mobileNavBtn.onclick = () => mobileNavMenu.classList.toggle("hidden");
-  }
+  mobileNavBtn.onclick = () => mobileNavMenu.classList.toggle("hidden");
 </script>
 
 <!-- ▣ MAIN -->
@@ -106,7 +112,7 @@
       class="w-full px-4 py-4 text-lg border rounded-xl"
       placeholder="바코드를 스캔하세요" autofocus />
 
-    <!-- (호환용) 기존 scan.js용 DOM 유지 (숨김) -->
+    <!-- scan.js용 DOM 유지 (숨김) -->
     <div class="hidden">
       <div id="recentScanStatus"></div>
       <div id="recentScanDetail"></div>
@@ -132,8 +138,9 @@
 
     <!-- 테이블 -->
     <div class="bg-white rounded-xl border flex flex-col flex-1">
-      <div class="px-3 py-2 border-b text-xs text-slate-500">
-        입고 검수 목록
+      <div class="px-3 py-2 border-b text-xs text-slate-500 flex justify-between">
+        <span>출고/전체 목록</span>
+        <span class="text-slate-400">가로 스크롤</span>
       </div>
       <div class="flex-1 overflow-auto">
         <table class="min-w-[900px] text-[12px]">
@@ -171,10 +178,7 @@
   </div>
 </div>
 
-<!-- ✅ IN 전용 (API 기반) -->
-<script defer src="in-scan.js?v=999"></script>
-
-
+<!-- 기존 scan.js 그대로 -->
+<script src="scan.js"></script>
 </body>
 </html>
-
