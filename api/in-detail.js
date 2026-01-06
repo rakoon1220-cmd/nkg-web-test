@@ -1,6 +1,6 @@
-// /api/in-detail.js — 최종본 (입고검수 IN 인보이스 상세)
-// ✅ 상태: 미입고 / 부분입고 / 입고완료 / 초과입고 (diff 기준)
-// ✅ summary 포함 (상단 카드, 특이사항 모달)
+// /api/in-detail.js — 최종본 (미입고 행 제외 버전)
+// ✅ 표시: 입고완료 / 부분입고 / 초과입고
+// ❌ 제외: 미입고(wmsQty === 0)
 
 const SAP_CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAWmUNAeyndXfdxHjR-1CakW_Tm3OzmMTng5RkB53umXwucqpxABqMMcB0y8H5cHNg7aoHYqFztz0F/pub?gid=221455512&single=true&output=csv";
@@ -10,7 +10,6 @@ const WMS_CSV_URL =
 
 export default async function handler(req, res) {
   try {
-    // 1) invoice 정규화
     let invoice = String(req.query.invoice || "").trim().replace(/[^0-9]/g, "");
     if (!invoice) {
       return res.status(400).json({
@@ -19,7 +18,6 @@ export default async function handler(req, res) {
       });
     }
 
-    // 2) CSV 로드 (병렬)
     const [sapResp, wmsResp] = await Promise.all([fetch(SAP_CSV_URL), fetch(WMS_CSV_URL)]);
     if (!sapResp.ok) throw new Error("SAP CSV 요청 실패: " + sapResp.status);
     if (!wmsResp.ok) throw new Error("WMS CSV 요청 실패: " + wmsResp.status);
@@ -28,17 +26,16 @@ export default async function handler(req, res) {
     const sapRows = parseCSV(sapText).slice(1);
     const wmsRows = parseCSV(wmsText).slice(1);
 
-    // 3) WMS Map(keyFull -> qty 합)
+    // WMS Map(keyFull -> qty 합)
     const wmsMap = new Map();
     for (const r of wmsRows) {
       if (!r || r.length < 5) continue;
-      const keyFull = clean(r[0]); // A
+      const keyFull = clean(r[0]);
       if (!keyFull) continue;
-      const qty = toNumber(r[4]);  // E
+      const qty = toNumber(r[4]);
       wmsMap.set(keyFull, (wmsMap.get(keyFull) || 0) + qty);
     }
 
-    // 4) SAP invoice 필터 + items
     const items = [];
     const noticeSet = new Set();
 
@@ -54,6 +51,9 @@ export default async function handler(req, res) {
       wmsQty: 0,    // WMS 합
       notice: "",
     };
+
+    // ✅ (추가) 미입고 건수/수량을 요약으로도 보고 싶으면 여기에 누적
+    let missingCount = 0;
 
     for (const r of sapRows) {
       if (!r || r.length < 24) continue;
@@ -77,14 +77,29 @@ export default async function handler(req, res) {
       const wmsQty = toNumber(wmsMap.get(keyFull));
       const diff = wmsQty - sapQty;
 
-      // ✅ 상태 분기 (diff 기준: 초과입고 누락 방지)
+      // ✅ 요약 누적은 전체를 기준으로 (미입고도 포함해서 “전체 수량”이 필요하면 여기서 누적)
+      summary.qty += sapQty;
+      summary.wmsQty += wmsQty;
+
+      if (summary.date === "-" && date) summary.date = date;
+      if (summary.country === "-" && country) summary.country = country;
+      if (summary.container === "-" && container) summary.container = container;
+      if (summary.cbm === "-" && cbm) summary.cbm = cbm;
+      if (summary.load_loc === "-" && loc) summary.load_loc = loc;
+
+      if (note) noticeSet.add(note);
+
+      // ❌ 미입고는 화면에서 제외 (행 제거)
+      if (wmsQty === 0) {
+        missingCount++;
+        continue;
+      }
+
+      // 상태 분기 (diff 기준)
       let status = "입고완료";
       let statusClass = "text-emerald-600";
 
-      if (wmsQty === 0) {
-        status = "미입고";
-        statusClass = "text-slate-500";
-      } else if (diff < 0) {
+      if (diff < 0) {
         status = "부분입고";
         statusClass = "text-amber-600";
       } else if (diff > 0) {
@@ -112,21 +127,10 @@ export default async function handler(req, res) {
         status,
         statusClass,
       });
-
-      // summary
-      if (summary.date === "-" && date) summary.date = date;
-      if (summary.country === "-" && country) summary.country = country;
-      if (summary.container === "-" && container) summary.container = container;
-      if (summary.cbm === "-" && cbm) summary.cbm = cbm;
-      if (summary.load_loc === "-" && loc) summary.load_loc = loc;
-
-      summary.qty += sapQty;
-      summary.wmsQty += wmsQty;
-
-      if (note) noticeSet.add(note);
     }
 
     summary.notice = Array.from(noticeSet).join("\n");
+    summary.missingCount = missingCount; // 필요 없으면 빼도 됨
 
     return res.status(200).json({
       ok: true,
