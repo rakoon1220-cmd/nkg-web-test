@@ -7,33 +7,32 @@
   <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
-  body { background: #eef1f5; }
+    body { background: #eef1f5; }
 
-  /* ===== 애니메이션 ===== */
-  @keyframes fadeIn {
-    from { opacity:0; transform:translateY(20px) scale(0.95); }
-    to   { opacity:1; transform:translateY(0) scale(1); }
-  }
-  .animate-fadeIn { animation: fadeIn 0.25s ease-out; }
+    /* ===== 애니메이션 ===== */
+    @keyframes fadeIn {
+      from { opacity:0; transform:translateY(20px) scale(0.95); }
+      to   { opacity:1; transform:translateY(0) scale(1); }
+    }
+    .animate-fadeIn { animation: fadeIn 0.25s ease-out; }
 
-  /* ===== 최근 스캔 3줄 고정 ===== */
-  #scanList {
-    max-height: 4.5rem;   /* 1.5rem × 3줄 */
-    overflow: hidden;
-  }
+    /* ===== 최근 스캔 3줄 고정 ===== */
+    #scanList {
+      max-height: 4.5rem;   /* 1.5rem × 3줄 */
+      overflow: hidden;
+    }
 
-  /* ✅ 미입고 행 전체 숨김 (미입고 = text-blue-600) */
-  tr:has(span.text-blue-600) {
-    display: none;
-  }
+    /* ✅ 미입고 행 전체 숨김 (미입고 = text-blue-600) */
+    tr:has(span.text-blue-600) {
+      display: none;
+    }
 
-  /* ===== 자재번호 열 숨김 ===== */
-  th:nth-child(2),
-  td:nth-child(2) {
-    display: none;
-  }
-</style>
-
+    /* ===== 자재번호 열 숨김 ===== */
+    th:nth-child(2),
+    td:nth-child(2) {
+      display: none;
+    }
+  </style>
 </head>
 
 <body class="min-h-screen bg-slate-100">
@@ -61,7 +60,12 @@
 <div class="h-14"></div>
 
 <script>
-  mobileNavBtn.onclick = () => mobileNavMenu.classList.toggle("hidden");
+  // 모바일 메뉴 토글 (안전하게)
+  const mobileNavBtn = document.getElementById("mobileNavBtn");
+  const mobileNavMenu = document.getElementById("mobileNavMenu");
+  if (mobileNavBtn && mobileNavMenu) {
+    mobileNavBtn.onclick = () => mobileNavMenu.classList.toggle("hidden");
+  }
 </script>
 
 <!-- ▣ MAIN -->
@@ -114,7 +118,7 @@
       class="w-full px-4 py-4 text-lg border rounded-xl"
       placeholder="바코드를 스캔하세요" autofocus />
 
-    <!-- scan.js용 DOM 유지 (숨김) -->
+    <!-- (호환용) 기존 scan.js용 DOM 유지 (숨김) -->
     <div class="hidden">
       <div id="recentScanStatus"></div>
       <div id="recentScanDetail"></div>
@@ -179,7 +183,7 @@
   </div>
 </div>
 
-<!-- 기존 scan.js 그대로 -->
-<script src="scan.js"></script>
+<!-- ✅ IN 전용 (API 기반) -->
+<script defer src="in-scan.js"></script>
 </body>
 </html>
