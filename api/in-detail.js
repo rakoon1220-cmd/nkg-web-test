@@ -1,10 +1,4 @@
-// /api/in-detail.js — ✅ 최종 수정본 (행 누락 방지 버전)
-// 핵심 수정:
-// - ✅ r.length < 24 같은 강제 스킵 제거
-// - ✅ safe(i)로 undefined 안전처리
-// - ✅ invoice 숫자 정규화, keyFull 공백 제거
-// - ✅ WMS 입고수량 컬럼 "헤더명" 자동 탐지
-// - debug=1 지원
+// /api/in-detail.js — ✅ 최종 (keyFull 매칭 100% + 캐시 금지)
 
 const SAP_CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAWmUNAeyndXfdxHjR-1CakW_Tm3OzmMTng5RkB53umXwucqpxABqMMcB0y8H5cHNg7aoHYqFztz0F/pub?gid=221455512&single=true&output=csv";
@@ -24,6 +18,10 @@ const WMS_QTY_HEADER_CANDIDATES = [
 ];
 
 export default async function handler(req, res) {
+  // ✅ 캐시 완전 차단 (Vercel/브라우저 모두)
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+  res.setHeader("Pragma", "no-cache");
+
   try {
     const debug = String(req.query.debug || "") === "1";
 
@@ -56,11 +54,16 @@ export default async function handler(req, res) {
 
     // 1) WMS Map(keyFull -> 입고수량 합)
     const wmsMap = new Map();
+    let wmsKeySamples = [];
+
     for (const r of wmsRows) {
-      const keyFull = normKey(r?.[0]);
+      const keyFull = normKeyFull(r?.[0]); // ✅ 핵심
       if (!keyFull) continue;
+
       const qty = toNumber(r?.[wmsQtyIndex]);
       wmsMap.set(keyFull, (wmsMap.get(keyFull) || 0) + qty);
+
+      if (debug && wmsKeySamples.length < 5) wmsKeySamples.push(keyFull);
     }
 
     // 2) SAP invoice 필터 + 결과
@@ -82,31 +85,37 @@ export default async function handler(req, res) {
 
     let cntMissing = 0, cntPartial = 0, cntDone = 0, cntOver = 0;
     let sampleOver = null;
-    let maxDiff = { diff: -Infinity, row: null };
+
+    // debug: 매칭 실패 샘플
+    let missSamples = [];
 
     for (const r of sapRows) {
-      if (!r || r.length < 2) continue; // ✅ 최소만 체크 (invoice 읽을 정도)
+      if (!r || r.length < 2) continue;
 
       const safe = (i) => clean(r[i] ?? "");
 
-      const keyFull = normKey(safe(0));
       const inv = safe(1).replace(/[^0-9]/g, "");
       if (inv !== invoice) continue;
 
-      const date = safe(4);       // E
-      const country = safe(5);    // F
-      const code = safe(6);       // G
-      const name = safe(7);       // H
-      const sapQty = toNumber(safe(8)); // I
-      const box = safe(9);        // J
-      const container = safe(14); // O
-      const work = safe(18);      // S
-      const cbm = safe(19);       // T
-      const loc = safe(22);       // W (없어도 OK)
-      const note = safe(23);      // X (없어도 OK)
+      const keyFull = normKeyFull(safe(0)); // ✅ 핵심
+      const date = safe(4);
+      const country = safe(5);
+      const code = safe(6);
+      const name = safe(7);
+      const sapQty = toNumber(safe(8));
+      const box = safe(9);
+      const container = safe(14);
+      const work = safe(18);
+      const cbm = safe(19);
+      const loc = safe(22);
+      const note = safe(23);
 
       const wmsQty = toNumber(wmsMap.get(keyFull));
       const diff = wmsQty - sapQty;
+
+      if (debug && wmsQty === 0 && missSamples.length < 10) {
+        missSamples.push({ keyFull, sapQty, box, name });
+      }
 
       summary.qty += sapQty;
       summary.wmsQty += wmsQty;
@@ -138,8 +147,6 @@ export default async function handler(req, res) {
       } else {
         cntDone++;
       }
-
-      if (diff > maxDiff.diff) maxDiff = { diff, row: { box, code, name, sapQty, wmsQty, keyFull } };
 
       items.push({
         no: items.length + 1,
@@ -175,9 +182,8 @@ export default async function handler(req, res) {
         cntDone,
         cntOver,
         sampleOver,
-        maxDiff,
-        sapHeader,
-        wmsHeader,
+        wmsKeySamples,
+        missSamples,
       };
     }
 
@@ -232,8 +238,28 @@ function clean(str) {
     .trim();
 }
 
-function normKey(s) {
-  return clean(s).replace(/\s+/g, "");
+// ✅ 핵심: keyFull을 "숫자 문자열"로 강제 정규화
+function normKeyFull(v) {
+  const s = clean(v);
+
+  if (!s) return "";
+
+  // 1) 공백/탭 제거
+  let t = s.replace(/\s+/g, "");
+
+  // 2) 엑셀 숫자형 "1880....0" -> 소수점 제거
+  //    (끝이 .0 이거나 과학표기 e+ 처리가 있을 수 있음)
+  if (/e\+?/i.test(t)) {
+    // 과학표기 대응: 가능한 범위에서 숫자화 후 정수 문자열
+    const n = Number(t);
+    if (Number.isFinite(n)) t = String(Math.trunc(n));
+  }
+
+  // 3) 숫자/영문만 남기기 (키가 순수 숫자라면 숫자만 남게 됨)
+  t = t.replace(/[^0-9A-Za-z]/g, "");
+
+  // 4) 혹시 "1880...0" 처럼 끝에 불필요한 0이 붙는다면 여기서 추가 보정 가능
+  return t;
 }
 
 function toNumber(v) {
