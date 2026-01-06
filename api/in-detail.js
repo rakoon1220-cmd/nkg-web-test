@@ -1,6 +1,6 @@
-// /api/in-detail.js — 최종본 (미입고 행 제외 버전)
-// ✅ 표시: 입고완료 / 부분입고 / 초과입고
-// ❌ 제외: 미입고(wmsQty === 0)
+// /api/in-detail.js — 최종본
+// ❌ WMS=0(미입고) 행은 아예 제외해서 내려줌
+// ✅ WMS>0은 전부 내려줌 (입고완료/부분입고/초과입고)
 
 const SAP_CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAWmUNAeyndXfdxHjR-1CakW_Tm3OzmMTng5RkB53umXwucqpxABqMMcB0y8H5cHNg7aoHYqFztz0F/pub?gid=221455512&single=true&output=csv";
@@ -18,15 +18,17 @@ export default async function handler(req, res) {
       });
     }
 
+    // 1) CSV 병렬 로드
     const [sapResp, wmsResp] = await Promise.all([fetch(SAP_CSV_URL), fetch(WMS_CSV_URL)]);
     if (!sapResp.ok) throw new Error("SAP CSV 요청 실패: " + sapResp.status);
     if (!wmsResp.ok) throw new Error("WMS CSV 요청 실패: " + wmsResp.status);
 
     const [sapText, wmsText] = await Promise.all([sapResp.text(), wmsResp.text()]);
+
     const sapRows = parseCSV(sapText).slice(1);
     const wmsRows = parseCSV(wmsText).slice(1);
 
-    // WMS Map(keyFull -> qty 합)
+    // 2) WMS Map(keyFull -> qty 합)
     const wmsMap = new Map();
     for (const r of wmsRows) {
       if (!r || r.length < 5) continue;
@@ -36,6 +38,7 @@ export default async function handler(req, res) {
       wmsMap.set(keyFull, (wmsMap.get(keyFull) || 0) + qty);
     }
 
+    // 3) 결과 구성
     const items = [];
     const noticeSet = new Set();
 
@@ -47,13 +50,12 @@ export default async function handler(req, res) {
       cbm: "-",
       load_loc: "-",
       load_time: "-",
-      qty: 0,       // SAP 합
-      wmsQty: 0,    // WMS 합
+      qty: 0,     // SAP 합(인보이스 전체)
+      wmsQty: 0,  // WMS 합(인보이스 전체)
       notice: "",
     };
 
-    // ✅ (추가) 미입고 건수/수량을 요약으로도 보고 싶으면 여기에 누적
-    let missingCount = 0;
+    let hiddenMissingRows = 0; // WMS=0으로 숨긴 행 수 (로그/확인용)
 
     for (const r of sapRows) {
       if (!r || r.length < 24) continue;
@@ -77,7 +79,7 @@ export default async function handler(req, res) {
       const wmsQty = toNumber(wmsMap.get(keyFull));
       const diff = wmsQty - sapQty;
 
-      // ✅ 요약 누적은 전체를 기준으로 (미입고도 포함해서 “전체 수량”이 필요하면 여기서 누적)
+      // summary는 전체 기준으로 누적 (숨겨진 미입고도 포함해 전체 수량이 맞음)
       summary.qty += sapQty;
       summary.wmsQty += wmsQty;
 
@@ -89,13 +91,13 @@ export default async function handler(req, res) {
 
       if (note) noticeSet.add(note);
 
-      // ❌ 미입고는 화면에서 제외 (행 제거)
+      // ❌ 핵심: WMS=0이면 행 자체 제외
       if (wmsQty === 0) {
-        missingCount++;
+        hiddenMissingRows++;
         continue;
       }
 
-      // 상태 분기 (diff 기준)
+      // ✅ 상태 (WMS>0만 들어온다)
       let status = "입고완료";
       let statusClass = "text-emerald-600";
 
@@ -130,13 +132,13 @@ export default async function handler(req, res) {
     }
 
     summary.notice = Array.from(noticeSet).join("\n");
-    summary.missingCount = missingCount; // 필요 없으면 빼도 됨
 
     return res.status(200).json({
       ok: true,
       invoice,
       summary,
       rows: items.length,
+      hiddenMissingRows, // 필요없으면 프론트에서 무시해도 됨
       data: items,
     });
   } catch (err) {
