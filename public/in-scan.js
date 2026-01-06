@@ -1,6 +1,6 @@
-// in-scan.js — 최종본
-// ✅ API가 WMS=0(미입고)을 제외해서 내려주므로 화면에서 따로 숨김 처리 불필요
-// ✅ 비교(diff): diff<0 => "부분입고" (숫자 숨김), diff>0 => +숫자, diff=0 => 0
+// in-scan.js — ✅ 최종버전 (입고검수용)
+// - 미입고/부분입고/초과입고/입고완료 모두 표시
+// - 비교(diff) 칸: 미입고는 "미입고", 부분입고는 "부분입고"(숫자 숨김), 초과입고는 +숫자, 완료는 0
 
 const API_BASE = window.location.origin;
 const API_IN_DETAIL = `${API_BASE}/api/in-detail`;
@@ -40,23 +40,27 @@ function renderTable(items) {
   if (!tbody) return;
 
   if (!items.length) {
-    tbody.innerHTML = `<tr><td class="px-3 py-3 text-slate-400" colspan="9">표시할 데이터 없음 (WMS=0 미입고는 숨김)</td></tr>`;
+    tbody.innerHTML = `<tr><td class="px-3 py-3 text-slate-400" colspan="9">데이터 없음</td></tr>`;
     return;
   }
 
   let html = "";
   for (const it of items) {
     const d = Number(it.diff || 0);
+    const wms = Number(it.wmsQty || 0);
 
     let diffText = "0";
     let diffClass = "text-emerald-600 font-bold";
 
-    if (d > 0) {
-      diffText = `+${num(d)}`;
-      diffClass = "text-rose-600 font-bold";
+    if (wms === 0) {
+      diffText = "미입고";
+      diffClass = "text-slate-500 font-bold";
     } else if (d < 0) {
       diffText = "부분입고"; // 숫자 숨김
       diffClass = "text-amber-600 font-bold";
+    } else if (d > 0) {
+      diffText = `+${num(d)}`;
+      diffClass = "text-rose-600 font-bold";
     }
 
     html += `
@@ -118,12 +122,13 @@ async function loadInvoice() {
   renderNotice(json.summary || {});
   renderTable(items);
 
-  pushRecentScan(`INV 조회 완료: ${inv} (표시 ${json.rows}건 / 미입고(WMS=0) 숨김)`);
+  pushRecentScan(`INV 조회 완료: ${inv} (rows ${json.rows})`);
   $("barcodeInput")?.focus();
 }
 
 function onScanEnter(e) {
   if (e.key !== "Enter") return;
+
   const code = String($("barcodeInput")?.value || "").trim();
   if (!code) return;
 
@@ -135,9 +140,6 @@ function onScanEnter(e) {
   pushRecentScan(`✅ ${it.box} | ${it.name} | ${it.status}`);
 }
 
-function openNotice() { $("noticeModal")?.classList.remove("hidden"); }
-function closeNotice() { $("noticeModal")?.classList.add("hidden"); }
-
 function num(v) {
   const n = Number(v);
   if (!isFinite(n)) return "-";
@@ -148,7 +150,7 @@ function escapeHtml(s) {
   return String(s || "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
+    .replace(/>/g, "&lt;")
     .replace(/"/g, "&quot;");
 }
 
