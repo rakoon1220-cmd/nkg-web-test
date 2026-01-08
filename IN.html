@@ -184,38 +184,95 @@
 
 <!-- ✅ 추가: WMS=0 (미입고) 행만 숨김 -->
 <script>
-  function hideZeroWmsRows() {
+  // 숫자 파싱 유틸 (쉼표/문자 제거)
+  function toNum(text) {
+    const s = String(text ?? "").trim();
+    const n = Number(s.replace(/[^0-9.-]/g, ""));
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  // ✅ 입고 전용 정렬 + 숨김
+  // - WMS=0 : 숨김 (미입고)
+  // - 그 외 : WMS 내림차순 (입고수량 큰 것 위)
+  // - 동률이면 SAP 내림차순, 그 다음 박스번호 오름차순
+  function applyInView() {
     const tbody = document.getElementById("scanTableBody");
     if (!tbody) return;
 
-    const rows = tbody.querySelectorAll("tr");
-    rows.forEach(tr => {
+    const rows = Array.from(tbody.querySelectorAll("tr"));
+    if (!rows.length) return;
+
+    // rows -> 데이터 추출
+    const items = rows.map(tr => {
       const tds = tr.querySelectorAll("td");
-      if (tds.length < 6) return;
-
-      // 컬럼: 0번호,1자재번호(숨김),2박스,3내역,4SAP,5WMS
-      const wmsText = (tds[5].innerText || "").trim();
-      const wms = Number(wmsText.replace(/[^0-9.-]/g, ""));
-
-      if (wms === 0) tr.style.display = "none";
+      // 컬럼: 0번호,1자재번호(숨김),2박스,3내역,4SAP,5WMS,6비교,7바코드,8상태
+      const sap = toNum(tds?.[4]?.innerText);
+      const wms = toNum(tds?.[5]?.innerText);
+      const box = (tds?.[2]?.innerText || "").trim();
+      return { tr, sap, wms, box };
     });
+
+    // ✅ WMS=0 숨김/표시 처리
+    items.forEach(x => {
+      x.tr.style.display = (x.wms === 0) ? "none" : "";
+    });
+
+    // ✅ 정렬(보이는 행만 정렬)
+    const visible = items.filter(x => x.wms !== 0);
+
+    visible.sort((a, b) => {
+      // 1) WMS 내림차순
+      if (b.wms !== a.wms) return b.wms - a.wms;
+      // 2) SAP 내림차순
+      if (b.sap !== a.sap) return b.sap - a.sap;
+      // 3) 박스번호 오름차순(문자)
+      return a.box.localeCompare(b.box, "ko");
+    });
+
+    // tbody 재배치 (숨김 행은 맨 아래 그대로 둬도 되고, 같이 붙여도 됨)
+    // 여기서는: "보이는 행 먼저" + "숨김 행(미입고) 뒤"
+    const hidden = items.filter(x => x.wms === 0);
+
+    // DOM 재조립
+    const frag = document.createDocumentFragment();
+    [...visible, ...hidden].forEach(x => frag.appendChild(x.tr));
+    tbody.appendChild(frag);
   }
 
-  // scan.js가 invoice 조회 후 표를 그릴 때까지 기다렸다가 숨김 적용
+  // ✅ loadInvoice 훅: invoice 조회 끝나고 항상 적용
   (function hookLoadInvoice() {
-    const orig = window.loadInvoice;
-    if (typeof orig === "function") {
-      window.loadInvoice = async function() {
-        const r = await orig.apply(this, arguments);
-        hideZeroWmsRows();
-        return r;
-      };
-    } else {
-      // loadInvoice가 아직 없으면 잠깐 후 재시도 (scan.js 로드 타이밍 대비)
-      setTimeout(hookLoadInvoice, 50);
+    const tryHook = () => {
+      const orig = window.loadInvoice;
+      if (typeof orig === "function" && !orig.__inHooked) {
+        window.loadInvoice = async function () {
+          const r = await orig.apply(this, arguments);
+          applyInView();
+          return r;
+        };
+        window.loadInvoice.__inHooked = true;
+      } else if (typeof orig !== "function") {
+        setTimeout(tryHook, 50);
+      }
+    };
+    tryHook();
+  })();
+
+  // ✅ scan.js가 tbody를 다시 그리거나 갱신해도 자동 적용
+  (function watchTableChanges() {
+    const tbody = document.getElementById("scanTableBody");
+    if (!tbody) {
+      setTimeout(watchTableChanges, 100);
+      return;
     }
+    const obs = new MutationObserver(() => {
+      // 너무 잦은 호출 방지(간단 디바운스)
+      clearTimeout(window.__inApplyTimer);
+      window.__inApplyTimer = setTimeout(applyInView, 30);
+    });
+    obs.observe(tbody, { childList: true, subtree: true });
   })();
 </script>
+
 
 </body>
 </html>
