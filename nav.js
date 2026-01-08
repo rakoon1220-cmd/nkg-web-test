@@ -28,6 +28,11 @@ document.addEventListener("DOMContentLoaded", () => {
           <a href="/index_shipping.html" class="${isActive("index_shipping.html")}">출고정보</a>
           <a href="/index_defect.html" class="${isActive("index_defect.html")}">결품조회</a>
           <a href="/index_stock.html" class="${isActive("index_stock.html")}">재고조회</a>
+
+          <!-- ✅ 추가 -->
+          <a href="/IN.html" class="${isActive("IN.html")}">입고검수</a>
+          <a href="/out.html" class="${isActive("out.html")}">출고검수</a>
+
           <a href="/scan.html" class="${isActive("scan.html")}">스캔검수</a>
 
           <button onclick="history.back()"
@@ -52,6 +57,11 @@ document.addEventListener("DOMContentLoaded", () => {
         <a href="/index_shipping.html" class="${isActive("index_shipping.html")} block">출고정보</a>
         <a href="/index_defect.html" class="${isActive("index_defect.html")} block">결품조회</a>
         <a href="/index_stock.html" class="${isActive("index_stock.html")} block">재고조회</a>
+
+        <!-- ✅ 추가 -->
+        <a href="/IN.html" class="${isActive("IN.html")} block">입고검수</a>
+        <a href="/out.html" class="${isActive("out.html")} block">출고검수</a>
+
         <a href="/scan.html" class="${isActive("scan.html")} block">스캔검수</a>
 
         <button onclick="history.back()"
