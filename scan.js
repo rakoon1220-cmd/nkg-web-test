@@ -234,7 +234,7 @@ function renderOutboundTable() {
     }
 
     // 스캔 완료 → 연노랑
-    if (item.status === "검수완료") cls += " bg-green-200 text-green-900 ";
+    if (item.status === "검수완료") cls += " bg-green-200 text-green-900 font-semibold ";
 
     // 중복 스캔 → 연초록 (최우선)
     if (item.dup) cls += " bg-emerald-50 ";
