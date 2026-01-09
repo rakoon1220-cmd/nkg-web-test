@@ -31,7 +31,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
           <!-- ✅ 추가 -->
           <a href="/IN.html" class="${isActive("IN.html")}">입고검수</a>
-          <a href="/out.html" class="${isActive("out.html")}">출고검수</a>
+          <a href="/OUT.html" class="${isActive("OUT.html")}">출고검수</a>
 
           <a href="/scan.html" class="${isActive("scan.html")}">스캔검수</a>
 
@@ -60,7 +60,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         <!-- ✅ 추가 -->
         <a href="/IN.html" class="${isActive("IN.html")} block">입고검수</a>
-        <a href="/out.html" class="${isActive("out.html")} block">출고검수</a>
+        <a href="/OUT.html" class="${isActive("OUT.html")} block">출고검수</a>
 
         <a href="/scan.html" class="${isActive("scan.html")} block">스캔검수</a>
 
