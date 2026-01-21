@@ -6,6 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://cdn.tailwindcss.com"></script>
 
+  <!-- ✅ 캡처 라이브러리 -->
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
   <style>
     body { background: #eef1f5; }
 
@@ -85,7 +88,6 @@
 <!-- 메인 -->
 <main class="max-w-[1500px] mx-auto p-4 space-y-4 h-[calc(100vh-56px)] flex flex-col min-h-0">
 
-
   <!-- 📌 상단: 인보이스 조회 + 요약 + 스캔 + 상태 -->
   <section class="bg-white rounded-xl shadow-sm border p-4 space-y-6 shrink-0">
 
@@ -93,196 +95,207 @@
     <div>
       <div class="flex items-center gap-6">
 
-  <!-- 인보이스 입력 -->
-  <input id="invInput"
-    class="w-[32rem] px-12 py-10
-           text-6xl font-black tracking-[0.2em]
-           placeholder:text-4xl
-           border-[5px] border-slate-600 rounded-[3rem]
-           focus:ring-[10px] focus:ring-sky-500 focus:border-sky-700
-           shadow-2xl text-center bg-slate-50"
-    placeholder="INV NO" />
+        <!-- 인보이스 입력 -->
+        <input id="invInput"
+          class="w-[32rem] px-12 py-10
+                 text-6xl font-black tracking-[0.2em]
+                 placeholder:text-4xl
+                 border-[5px] border-slate-600 rounded-[3rem]
+                 focus:ring-[10px] focus:ring-sky-500 focus:border-sky-700
+                 shadow-2xl text-center bg-slate-50"
+          placeholder="INV NO" />
 
-  <!-- 조회 -->
-  <button id="btnLoadInv"
-    class="px-12 py-10
-           text-4xl font-black tracking-wide
-           bg-sky-600 hover:bg-sky-700
-           text-white rounded-[3rem]
-           shadow-2xl active:scale-95">
-    조회
-  </button>
+        <!-- ✅ 조회 -->
+        <button id="btnLoadInv"
+          class="px-12 py-10
+                 text-4xl font-black tracking-wide
+                 bg-sky-600 hover:bg-sky-700
+                 text-white rounded-[3rem]
+                 shadow-2xl active:scale-95">
+          조회
+        </button>
 
-  <!-- 특이사항 -->
-  <button id="btnNoticeOpen"
-    class="px-12 py-10
-           text-4xl font-black tracking-wide
-           bg-orange-500 hover:bg-orange-600
-           text-white rounded-[3rem]
-           shadow-2xl active:scale-95">
-    특이사항
-  </button>
+        <!-- ✅ 특이사항 -->
+        <button id="btnNoticeOpen"
+          class="px-12 py-10
+                 text-4xl font-black tracking-wide
+                 bg-orange-500 hover:bg-orange-600
+                 text-white rounded-[3rem]
+                 shadow-2xl active:scale-95">
+          특이사항
+        </button>
 
-</div>
+        <!-- ✅ 저장(캡처) -->
+        <button id="btnCapture"
+          class="px-12 py-10
+                 text-4xl font-black tracking-wide
+                 bg-emerald-600 hover:bg-emerald-700
+                 text-white rounded-[3rem]
+                 shadow-2xl active:scale-95">
+          저장
+        </button>
 
+      </div>
     </div>
 
-    <!-- ▣ 상단 요약 (2줄 헤더 스타일) -->
-    <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+    <!-- ✅ 캡처할 영역: "상세내역(요약) + 하단 목록(스캔/출고)"만 저장하고 싶으면
+         여기부터 감싸면 됨 -->
+    <div id="captureArea" class="space-y-6">
 
-      <!-- 1줄 -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm font-medium text-slate-700">
-        <div>
-          <div class="text-[11px] text-slate-500">인보이스</div>
-          <div id="inv_no" class="text-base font-semibold whitespace-nowrap">-</div>
+      <!-- ▣ 상단 요약 (2줄 헤더 스타일) -->
+      <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+
+        <!-- 1줄 -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm font-medium text-slate-700">
+          <div>
+            <div class="text-[11px] text-slate-500">인보이스</div>
+            <div id="inv_no" class="text-base font-semibold whitespace-nowrap">-</div>
+          </div>
+
+          <div>
+            <div class="text-[11px] text-slate-500">국가</div>
+            <div id="country" class="text-base font-semibold whitespace-nowrap">-</div>
+          </div>
+
+          <div>
+            <div class="text-[11px] text-slate-500">상차 위치</div>
+            <div id="load_loc" class="text-base font-semibold whitespace-nowrap">-</div>
+          </div>
+
+          <div>
+            <div class="text-[11px] text-slate-500">상차 시간</div>
+            <div id="load_time" class="text-base font-semibold whitespace-nowrap">-</div>
+          </div>
         </div>
 
-        <div>
-          <div class="text-[11px] text-slate-500">국가</div>
-          <div id="country" class="text-base font-semibold whitespace-nowrap">-</div>
+        <div class="border-t border-slate-200"></div>
+
+        <!-- 2줄 -->
+        <div class="grid grid-cols-3 gap-3 text-sm font-medium text-slate-700">
+          <div>
+            <div class="text-[11px] text-slate-500">컨테이너</div>
+            <div id="container" class="text-base font-semibold whitespace-nowrap">-</div>
+          </div>
+
+          <div>
+            <div class="text-[11px] text-slate-500">CBM</div>
+            <div id="cbm" class="text-base font-semibold whitespace-nowrap">-</div>
+          </div>
+
+          <div>
+            <div class="text-[11px] text-slate-500">출고수량(Box)</div>
+            <div id="qty" class="text-base font-semibold whitespace-nowrap">-</div>
+          </div>
         </div>
 
-        <div>
-          <div class="text-[11px] text-slate-500">상차 위치</div>
-          <div id="load_loc" class="text-base font-semibold whitespace-nowrap">-</div>
-        </div>
-
-        <div>
-          <div class="text-[11px] text-slate-500">상차 시간</div>
-          <div id="load_time" class="text-base font-semibold whitespace-nowrap">-</div>
-        </div>
       </div>
 
-      <div class="border-t border-slate-200"></div>
-
-      <!-- 2줄 -->
-      <div class="grid grid-cols-3 gap-3 text-sm font-medium text-slate-700">
-        <div>
-          <div class="text-[11px] text-slate-500">컨테이너</div>
-          <div id="container" class="text-base font-semibold whitespace-nowrap">-</div>
-        </div>
-
-        <div>
-          <div class="text-[11px] text-slate-500">CBM</div>
-          <div id="cbm" class="text-base font-semibold whitespace-nowrap">-</div>
-        </div>
-
-        <div>
-          <div class="text-[11px] text-slate-500">출고수량(Box)</div>
-          <div id="qty" class="text-base font-semibold whitespace-nowrap">-</div>
-        </div>
+      <!-- ▣ 바코드 스캔 (캡처에 굳이 포함 안 하고 싶으면 captureArea 밖으로 빼면 됨) -->
+      <div>
+        <div class="text-sm font-semibold text-slate-600 mb-1">바코드 스캔</div>
+        <input id="barcodeInput"
+          class="w-full px-3 py-3 text-lg border border-slate-300 rounded-lg
+                 focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+          placeholder="바코드를 스캔하세요" autofocus />
       </div>
 
-    </div>
+      <!-- ▣ 최근 스캔 + 누적 + 에러 + 중복 -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
 
-    <!-- ▣ 바코드 스캔 -->
-    <div>
-      <div class="text-sm font-semibold text-slate-600 mb-1">바코드 스캔</div>
-      <input id="barcodeInput"
-        class="w-full px-3 py-3 text-lg border border-slate-300 rounded-lg
-               focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
-        placeholder="바코드를 스캔하세요" autofocus />
-    </div>
-
-    <!-- ▣ 최근 스캔 + 누적 + 에러 + 중복 -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-
-      <!-- 최근 -->
-      <div class="bg-slate-50 rounded-xl border p-3">
-        <div class="text-xs text-slate-500 mb-1">최근 스캔 결과</div>
-        <div id="recentScanStatus" class="text-lg font-bold text-slate-700">-</div>
-        <div id="recentScanDetail"
-             class="text-[11px] text-slate-400 mt-1 leading-relaxed"></div>
-      </div>
-
-      <!-- 누적 + 퍼센트 -->
-      <div class="bg-slate-50 rounded-xl border p-3">
-        <div class="text-xs text-slate-500 mb-1">누적 진행</div>
-
-        <div class="flex items-baseline gap-2">
-          <span id="progress_now" class="text-2xl font-bold text-slate-800">0</span>
-          <span id="progress_total" class="text-xs text-slate-400">/ 0 품목</span>
-          <span id="progress_percent"
-                class="text-sm font-semibold text-emerald-700 ml-2">0%</span>
+        <!-- 최근 -->
+        <div class="bg-slate-50 rounded-xl border p-3">
+          <div class="text-xs text-slate-500 mb-1">최근 스캔 결과</div>
+          <div id="recentScanStatus" class="text-lg font-bold text-slate-700">-</div>
+          <div id="recentScanDetail"
+               class="text-[11px] text-slate-400 mt-1 leading-relaxed"></div>
         </div>
 
-        <div class="mt-2 h-1.5 rounded-full bg-slate-200">
-          <div id="progress_bar" class="h-full w-0 bg-sky-500"></div>
+        <!-- 누적 + 퍼센트 -->
+        <div class="bg-slate-50 rounded-xl border p-3">
+          <div class="text-xs text-slate-500 mb-1">누적 진행</div>
+
+          <div class="flex items-baseline gap-2">
+            <span id="progress_now" class="text-2xl font-bold text-slate-800">0</span>
+            <span id="progress_total" class="text-xs text-slate-400">/ 0 품목</span>
+            <span id="progress_percent"
+                  class="text-sm font-semibold text-emerald-700 ml-2">0%</span>
+          </div>
+
+          <div class="mt-2 h-1.5 rounded-full bg-slate-200">
+            <div id="progress_bar" class="h-full w-0 bg-sky-500"></div>
+          </div>
         </div>
+
+        <!-- 에러 -->
+        <div class="bg-slate-50 rounded-xl border p-3">
+          <div class="text-xs text-slate-500 mb-1">미등록 바코드</div>
+          <div class="flex items-baseline gap-2">
+            <span id="error_count" class="text-2xl font-bold text-red-600">0</span>
+            <span class="text-xs text-slate-400">건</span>
+          </div>
+        </div>
+
+        <!-- 중복 -->
+        <div class="bg-slate-50 rounded-xl border p-3">
+          <div class="text-xs text-slate-500 mb-1">중복 바코드</div>
+          <div class="flex items-baseline gap-2">
+            <span id="dup_count" class="text-2xl font-bold text-amber-600">0</span>
+            <span class="text-xs text-slate-400">건</span>
+          </div>
+        </div>
+
       </div>
 
-      <!-- 에러 -->
-      <div class="bg-slate-50 rounded-xl border p-3">
-        <div class="text-xs text-slate-500 mb-1">미등록 바코드</div>
-        <div class="flex items-baseline gap-2">
-          <span id="error_count" class="text-2xl font-bold text-red-600">0</span>
-          <span class="text-xs text-slate-400">건</span>
-        </div>
-      </div>
+      <!-- 📌 하단: 스캔 목록 + 출고 검수 목록 -->
+      <section class="grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-0">
 
-      <!-- 중복 -->
-      <div class="bg-slate-50 rounded-xl border p-3">
-        <div class="text-xs text-slate-500 mb-1">중복 바코드</div>
-        <div class="flex items-baseline gap-2">
-          <span id="dup_count" class="text-2xl font-bold text-amber-600">0</span>
-          <span class="text-xs text-slate-400">건</span>
-        </div>
-      </div>
+        <!-- LEFT : 스캔된 목록 (스크롤 O) -->
+        <div class="col-span-1 bg-white rounded-xl shadow-sm border p-4 flex flex-col min-h-0">
+          <div class="text-xs text-slate-500 mb-2 shrink-0">스캔된 목록</div>
 
-    </div>
+          <div id="scanList"
+               class="flex-1 min-h-0 overflow-auto text-xs text-slate-700 space-y-1">
+            <div class="text-slate-400">아직 스캔 없음…</div>
+          </div>
+        </div>
+
+        <!-- RIGHT : 출고 검수 목록 (스크롤 O) -->
+        <div class="col-span-2 bg-white rounded-xl shadow-sm border flex flex-col min-h-0">
+
+          <div class="px-4 py-2 border-b border-slate-200
+                      text-[11px] text-slate-500 flex justify-between shrink-0">
+            <span>출고 검수 목록</span>
+            <span>정렬: 번호 ↑</span>
+          </div>
+
+          <div class="flex-1 min-h-0 overflow-auto">
+            <div class="w-full overflow-x-auto">
+              <table class="min-w-[900px] text-[12px]">
+                <thead class="bg-slate-50 sticky top-0 border-b border-slate-200 z-10">
+                  <tr class="text-slate-500">
+                    <th class="px-3 py-2 text-left whitespace-nowrap">번호</th>
+                    <th class="px-3 py-2 text-left whitespace-nowrap">자재번호</th>
+                    <th class="px-3 py-2 text-left whitespace-nowrap">박스번호</th>
+                    <th class="px-3 py-2 text-left whitespace-nowrap">자재내역</th>
+                    <th class="px-3 py-2 text-right whitespace-nowrap">SAP</th>
+                    <th class="px-3 py-2 text-right whitespace-nowrap">WMS</th>
+                    <th class="px-3 py-2 text-right whitespace-nowrap">비교</th>
+                    <th class="px-3 py-2 text-left whitespace-nowrap">바코드</th>
+                    <th class="px-3 py-2 text-left whitespace-nowrap">상태</th>
+                  </tr>
+                </thead>
+
+                <tbody id="scanTableBody" class="divide-y divide-slate-200"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+    </div><!-- /#captureArea -->
 
   </section>
-
-  <!-- 📌 하단: 스캔 목록 + 출고 검수 목록 -->
-<section class="grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-0">
-
-  <!-- LEFT : 스캔된 목록 (스크롤 O) -->
-  <div class="col-span-1 bg-white rounded-xl shadow-sm border p-4 flex flex-col min-h-0">
-    <div class="text-xs text-slate-500 mb-2 shrink-0">스캔된 목록</div>
-
-    <!-- 🔽 여기만 스크롤 -->
-    <div id="scanList"
-         class="flex-1 min-h-0 overflow-auto text-xs text-slate-700 space-y-1">
-      <div class="text-slate-400">아직 스캔 없음…</div>
-    </div>
-  </div>
-
-  <!-- RIGHT : 출고 검수 목록 (스크롤 O) -->
-  <div class="col-span-2 bg-white rounded-xl shadow-sm border flex flex-col min-h-0">
-
-    <!-- 헤더 (고정) -->
-    <div class="px-4 py-2 border-b border-slate-200
-                text-[11px] text-slate-500 flex justify-between shrink-0">
-      <span>출고 검수 목록</span>
-      <span>정렬: 번호 ↑</span>
-    </div>
-
-    <!-- 🔽 테이블 스크롤 영역 -->
-    <div class="flex-1 min-h-0 overflow-auto">
-      <div class="w-full overflow-x-auto">
-        <table class="min-w-[900px] text-[12px]">
-          <thead class="bg-slate-50 sticky top-0 border-b border-slate-200 z-10">
-            <tr class="text-slate-500">
-              <th class="px-3 py-2 text-left whitespace-nowrap">번호</th>
-              <th class="px-3 py-2 text-left whitespace-nowrap">자재번호</th>
-              <th class="px-3 py-2 text-left whitespace-nowrap">박스번호</th>
-              <th class="px-3 py-2 text-left whitespace-nowrap">자재내역</th>
-              <th class="px-3 py-2 text-right whitespace-nowrap">SAP</th>
-              <th class="px-3 py-2 text-right whitespace-nowrap">WMS</th>
-              <th class="px-3 py-2 text-right whitespace-nowrap">비교</th>
-              <th class="px-3 py-2 text-left whitespace-nowrap">바코드</th>
-              <th class="px-3 py-2 text-left whitespace-nowrap">상태</th>
-            </tr>
-          </thead>
-
-          <tbody id="scanTableBody" class="divide-y divide-slate-200"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-</section>
-
 
 </main>
 
@@ -306,5 +319,55 @@
 </div>
 
 <script src="scan.js"></script>
+
+<!-- ✅ 저장(캡처): 인보이스 번호로 저장 -->
+<script>
+  document.getElementById("btnCapture").addEventListener("click", async () => {
+    try {
+      const target = document.getElementById("captureArea");
+      if (!target) {
+        alert("캡처 영역(#captureArea)을 찾을 수 없습니다.");
+        return;
+      }
+
+      // ✅ 파일명: 화면 표시 inv_no 우선 (정확) → 없으면 입력값
+      const inv =
+        (document.getElementById("inv_no")?.textContent || "").trim() ||
+        (document.getElementById("invInput")?.value || "NO_INV").trim();
+
+      // 파일명 안전 처리(특수문자 제거)
+      const safeInv = inv.replace(/[\\/:*?"<>|]/g, "_");
+
+      // 진행/오류/중복 suffix
+      const nowCnt = document.getElementById("progress_now")?.textContent?.trim();
+      const totalCnt = document.getElementById("progress_total")?.textContent?.trim();
+      const errCnt = document.getElementById("error_count")?.textContent?.trim();
+      const dupCnt = document.getElementById("dup_count")?.textContent?.trim();
+
+      const suffixParts = [];
+      if (nowCnt && totalCnt) suffixParts.push(`${nowCnt}of${totalCnt}`);
+      if (errCnt) suffixParts.push(`ERR${errCnt}`);
+      if (dupCnt) suffixParts.push(`DUP${dupCnt}`);
+      const suffix = suffixParts.length ? "_" + suffixParts.join("_") : "";
+
+      const canvas = await html2canvas(target, {
+        scale: 2,
+        backgroundColor: "#eef1f5",
+        useCORS: true,
+        scrollX: 0,
+        scrollY: -window.scrollY
+      });
+
+      const a = document.createElement("a");
+      a.href = canvas.toDataURL("image/png");
+      a.download = `${safeInv}${suffix}.png`;  // ✅ 인보이스 번호가 파일명
+      a.click();
+    } catch (e) {
+      console.error(e);
+      alert("저장 실패: " + (e?.message || e));
+    }
+  });
+</script>
+
 </body>
 </html>
