@@ -162,13 +162,6 @@ invInput.addEventListener("keydown", e => {
 });
 
 /* ------------------------------------------------------------
-   출고 목록 렌더링 (최종 안정판)
-   - 색상 규칙 적용
-   - compare 표시 규칙 최종 적용
-   - 바코드 미등록 표시
------------------------------------------------------------- */
-
-/* ------------------------------------------------------------
    compare 표시 규칙 함수 (최종)
 ------------------------------------------------------------ */
 function renderCompare(item) {
@@ -196,16 +189,13 @@ function renderCompare(item) {
     return `<span class="text-blue-600 font-semibold">초과입고</span>`;
   }
 
-  // ⭐ 신규 규칙: 0 < compare < SAP → 부분미입고 = 빨강
+  // 0 < compare < SAP → 부분미입고 = 빨강
   if (compare > 0 && compare < sap) {
     return `<span class="text-red-600 font-semibold">${compare} (부분미입고)</span>`;
   }
 
-  // 그 외 숫자 그대로
   return `<span>${compare}</span>`;
 }
-
-
 
 /* ------------------------------------------------------------
    출고 목록 렌더링 (최종 안정판)
@@ -218,26 +208,17 @@ function renderOutboundTable() {
 
     let cls = "";
 
-    /* 색상 규칙 적용 */
-
     // SAP = 0 → 연빨강
     if (Number(item.sap) === 0) cls += " bg-red-100 ";
 
     // compare < 0 → 연파랑
     if (Number(item.compare) < 0) cls += " bg-blue-50 ";
 
-    // ⭐ compare > 0 AND compare < SAP → 부분미입고 빨강 배경?
-    // UI 요청은 텍스트만 빨간색인지, 배경도 빨간색인지 확인 필요해서
-    // 일단 텍스트만 빨강, 배경 유지함 (원하면 배경도 넣을게)
-    if (Number(item.compare) > 0 && Number(item.compare) < Number(item.sap)) {
-      cls += " "; // 배경색 없음, 텍스트만 빨강
-    }
-
-    // 스캔 완료 → 연노랑
+    // 스캔 완료 → 연초록
     if (item.status === "검수완료") cls += " bg-green-200 text-green-900 font-semibold ";
 
-    // 중복 스캔 → 연초록 (최우선)
-    if (item.dup) cls += " bg-emerald-50 ";
+    // 중복 스캔 → 연노랑 (최우선)
+    if (item.dup) cls += " bg-yellow-100 ";
 
     // 마지막 스캔 강조
     if (item.barcode === lastScannedBarcode) cls += " ring-2 ring-amber-400 ";
@@ -248,6 +229,8 @@ function renderOutboundTable() {
     const barcodeDisplay = item.barcode
       ? item.barcode
       : `<span class="text-red-600 font-semibold">바코드미등록</span>`;
+
+    const workDisplay = (item.work || "").toString().trim() || "-";
 
     tr.innerHTML = `
       <td class="px-3 py-2 whitespace-nowrap">${item.no}</td>
@@ -262,6 +245,8 @@ function renderOutboundTable() {
         ${renderCompare(item)}
       </td>
 
+      <td class="px-3 py-2 whitespace-nowrap">${workDisplay}</td>
+
       <td class="px-3 py-2 whitespace-nowrap">${barcodeDisplay}</td>
       <td class="px-3 py-2 whitespace-nowrap">${item.status}</td>
     `;
@@ -271,8 +256,6 @@ function renderOutboundTable() {
 
   progress_total.textContent = `/ ${outboundItems.length} 품목`;
 }
-
-
 
 /* ------------------------------------------------------------
    스캔 처리
@@ -370,12 +353,10 @@ function renderScanList() {
       div.className = "text-green-700";
       div.textContent = `✅ [완료] ${entry.code} (${entry.item.box}) - ${entry.item.name}`;
     }
-
     else if (entry.type === "dup") {
       div.className = "text-amber-700";
       div.textContent = `🔁 [중복] ${entry.code} (${entry.item.box}) - ${entry.item.name}`;
     }
-
     else {
       div.className = "text-red-600";
       if (entry.meta)

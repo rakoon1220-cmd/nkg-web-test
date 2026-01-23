@@ -22,8 +22,22 @@ function bust(url) {
   return url.includes("?") ? `${url}&t=${t}` : `${url}?t=${t}`;
 }
 
+// ✅ 값 안전 문자열
+function asText(v) {
+  if (v === null || v === undefined) return "";
+  return String(v).trim();
+}
+
+// ✅ 여러 후보 키 중 존재하는 컬럼을 찾아 값 리턴
+function pick(r, keys) {
+  for (const k of keys) {
+    if (Object.prototype.hasOwnProperty.call(r, k)) return asText(r[k]);
+  }
+  return "";
+}
+
 export default async function handler(req, res) {
-  // ✅ API 응답 캐시 금지 (브라우저/프록시/Vercel edge 등)
+  // ✅ API 응답 캐시 금지
   res.setHeader("Cache-Control", "no-store, max-age=0");
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Expires", "0");
@@ -54,8 +68,8 @@ export default async function handler(req, res) {
     const wmsMap = {};
     wmsRows.forEach(r => {
       const invKey = normalizeInv(r["인보이스"]);
-      const mat = (r["상품코드"] || "").trim();
-      const box = (r["박스번호"] || "").trim();
+      const mat = asText(r["상품코드"]);
+      const box = asText(r["박스번호"]);
       const qty = Number(r["수량"] || 0);
 
       if (!invKey || !mat || !box) return;
@@ -67,9 +81,9 @@ export default async function handler(req, res) {
     // 3) 바코드 맵 (자재번호 + 박스번호 → 바코드)
     const barcodeMap = {};
     barcodeRows.forEach(r => {
-      const mat = (r["자재번호"] || "").trim();
-      const box = (r["박스번호"] || "").trim();
-      const barcode = (r["바코드"] || "").trim();
+      const mat = asText(r["자재번호"]);
+      const box = asText(r["박스번호"]);
+      const barcode = asText(r["바코드"]);
       if (!mat || !barcode) return;
 
       const key = `${mat}__${box}`;
@@ -82,20 +96,25 @@ export default async function handler(req, res) {
       }
     });
 
-    // 4) 최종 아이템 리스트 구성
+    // 4) 최종 아이템 리스트 구성 (+ work 추가)
     const items = sapList.map(r => {
-      const no = r["번호"] || "";
-      const mat = r["자재코드"] || "";
-      const box = r["박스번호"] || "";
-      const name = r["자재내역"] || "";
+      const no = asText(r["번호"]);
+      const mat = asText(r["자재코드"]);
+      const box = asText(r["박스번호"]);
+      const name = asText(r["자재내역"]);
       const sapQty = Number(r["출고"] || 0);
-      const unit = r["단위"] || "";
+      const unit = asText(r["단위"]);
 
-      const invMatKey = (r["인보이스+자재코드"] || "").trim();
+      const invMatKey = asText(r["인보이스+자재코드"]);
       const wmsKey = `${targetInv}__${mat}__${box}`;
       const wmsQty = Number(wmsMap[wmsKey] || 0);
 
       const compare = sapQty - wmsQty;
+
+      // ✅ sap자재자동 S열 값 (헤더명 후보)
+      // S열 헤더가 "작업"이면 바로 잡힘.
+      // 혹시 다른 이름이면 여기 배열에 추가하면 됨.
+      const work = pick(r, ["작업", "WORK", "work", "작업구분", "작업내용", "S", "S열"]);
 
       // 바코드 매핑: 자재번호 + 박스번호 기준
       const barcodeKey = `${mat}__${box}`;
@@ -112,6 +131,7 @@ export default async function handler(req, res) {
         wms: wmsQty,
         compare,
         unit,
+        work, // ✅ 추가
         barcode,
         status: "미완료",
       };

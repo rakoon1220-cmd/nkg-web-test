@@ -1,4 +1,4 @@
-// /api/defect.js — Stable Serverless Version (최종본)
+// /api/defect.js — Stable Serverless Version 
 
 export default async function handler(req, res) {
   try {

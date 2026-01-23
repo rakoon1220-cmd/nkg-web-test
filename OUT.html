@@ -24,7 +24,7 @@
       overflow: hidden;
     }
 
-    /* ===== 자재번호 열 숨김 ===== */
+    /* ===== 자재번호 열 숨김 (2번째 컬럼 = 자재번호) ===== */
     th:nth-child(2),
     td:nth-child(2) {
       display: none;
@@ -112,7 +112,7 @@
     <!-- ================= 하단 ================= -->
     <section class="flex flex-col gap-3 flex-1">
 
-      <!-- ✅ 최근 스캔: 출고목록(테이블) 위로 이동 (캡처 제외 유지) -->
+      <!-- ✅ 최근 스캔 -->
       <div class="bg-white rounded-xl border p-3">
         <div class="text-xs text-slate-500 mb-2">스캔된 목록 (최근 3건)</div>
         <div id="scanList" class="text-sm leading-6 text-slate-700">
@@ -120,7 +120,7 @@
         </div>
       </div>
 
-      <!-- ✅ 캡처할 영역: 상세내역(요약) + 출고목록(테이블)만 -->
+      <!-- ✅ 캡처할 영역 -->
       <div id="captureArea" class="space-y-3 flex-1">
         <div class="bg-white rounded-xl border flex flex-col flex-1">
           <div class="px-3 py-2 border-b text-xs text-slate-500 flex justify-between">
@@ -128,7 +128,7 @@
             <span class="text-slate-400">가로 스크롤</span>
           </div>
           <div class="flex-1 overflow-auto">
-            <table class="min-w-[900px] text-[12px]">
+            <table class="min-w-[980px] text-[12px]">
               <thead class="bg-slate-50 sticky top-0">
                 <tr>
                   <th class="px-3 py-2">번호</th>
@@ -138,6 +138,7 @@
                   <th class="px-3 py-2 text-right">SAP</th>
                   <th class="px-3 py-2 text-right">WMS</th>
                   <th class="px-3 py-2 text-right">비교</th>
+                  <th class="px-3 py-2">작업</th>
                   <th class="px-3 py-2">바코드</th>
                   <th class="px-3 py-2">상태</th>
                 </tr>
@@ -164,10 +165,10 @@
     </div>
   </div>
 
-  <!-- 기존 scan.js 그대로 -->
+  <!-- scan.js -->
   <script src="scan.js"></script>
 
-  <!-- ✅ 저장(캡처) 기능: 인보이스 번호로 저장 -->
+  <!-- ✅ 저장(캡처) 기능 -->
   <script>
     document.getElementById("btnCapture").addEventListener("click", async () => {
       try {
@@ -177,19 +178,9 @@
           return;
         }
 
-        // ✅ 파일명: 화면 표시 inv_no 우선 (정확)
         const inv =
           (document.getElementById("inv_no")?.textContent || "").trim() ||
           (document.getElementById("invInput")?.value || "NO_INV").trim();
-
-        const now = new Date();
-        const stamp =
-          now.getFullYear().toString() +
-          String(now.getMonth() + 1).padStart(2, "0") +
-          String(now.getDate()).padStart(2, "0") + "_" +
-          String(now.getHours()).padStart(2, "0") +
-          String(now.getMinutes()).padStart(2, "0") +
-          String(now.getSeconds()).padStart(2, "0");
 
         const nowCnt = document.getElementById("progress_now")?.textContent?.trim();
         const totalCnt = document.getElementById("progress_total")?.textContent?.trim();
@@ -212,7 +203,7 @@
 
         const a = document.createElement("a");
         a.href = canvas.toDataURL("image/png");
-        a.download = `${inv}${suffix}.png`; // ✅ 인보이스 번호가 파일명
+        a.download = `${inv}${suffix}.png`;
         a.click();
       } catch (e) {
         console.error(e);
@@ -223,5 +214,3 @@
 
 </body>
 </html>
-
-
