@@ -29,12 +29,21 @@ function asText(v) {
 }
 
 // ✅ 여러 후보 키 중 존재하는 컬럼을 찾아 값 리턴
-function pick(r, keys) {
-  for (const k of keys) {
-    if (Object.prototype.hasOwnProperty.call(r, k)) return asText(r[k]);
+function pickLoose(r, keys) {
+  // 헤더 키를 "공백 제거한 형태"로 재구성
+  const norm = {};
+  for (const k of Object.keys(r)) {
+    norm[String(k).replace(/\s+/g, "")] = r[k];
+  }
+
+  // 찾고 싶은 키도 공백 제거해서 비교
+  for (const want of keys) {
+    const v = norm[String(want).replace(/\s+/g, "")];
+    if (v !== undefined) return asText(v);
   }
   return "";
 }
+
 
 export default async function handler(req, res) {
   // ✅ API 응답 캐시 금지
@@ -114,7 +123,8 @@ export default async function handler(req, res) {
       // ✅ sap자재자동 S열 값 (헤더명 후보)
       // S열 헤더가 "작업"이면 바로 잡힘.
       // 혹시 다른 이름이면 여기 배열에 추가하면 됨.
-      const work = pick(r, ["작업", "WORK", "work", "작업구분", "작업내용", "S", "S열"]);
+      const work = pickLoose(r, ["작업여부", "작업 여부", "작업", "WORK", "work"]);
+
 
       // 바코드 매핑: 자재번호 + 박스번호 기준
       const barcodeKey = `${mat}__${box}`;
