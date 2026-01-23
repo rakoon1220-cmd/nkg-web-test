@@ -1,15 +1,12 @@
 // api/_csv.js
+// Vercel / Node18+ fetch 내장
 
-// Vercel / Node18+ 에서는 fetch 내장
 export async function loadCsv(url) {
   try {
-    // ✅ 강제 캐시 무시 (Node fetch / 프록시 캐시 방지)
     const res = await fetch(url, {
+      // 구글 pub 캐시/프록시 캐시 영향 줄이기
       cache: "no-store",
-      headers: {
-        "Cache-Control": "no-cache",
-        "Pragma": "no-cache",
-      },
+      headers: { "Cache-Control": "no-cache" },
     });
 
     if (!res.ok) {
@@ -17,6 +14,16 @@ export async function loadCsv(url) {
     }
 
     const text = await res.text();
+
+    // ✅ CSV 대신 HTML(구글 오류/차단/로그인 페이지) 들어오는 경우 방지
+    const head = text.slice(0, 200).toLowerCase();
+    if (head.includes("<!doctype") || head.includes("<html") || head.includes("google")) {
+      // 그래도 CSV일 수 있어 과한 차단은 안 하고, 너무 확실한 html만 체크
+      if (head.includes("<html") || head.includes("<!doctype")) {
+        throw new Error("CSV가 아닌 HTML이 응답되었습니다(구글 차단/오류 가능).");
+      }
+    }
+
     return parseCsv(text);
   } catch (err) {
     console.error("CSV LOAD ERROR:", err);
@@ -25,7 +32,7 @@ export async function loadCsv(url) {
 }
 
 /**
- * 따옴표 안의 콤마/줄바꿈까지 처리하는 CSV 파서
+ * ✅ 따옴표 안 콤마/줄바꿈 처리 + ✅ 헤더/값 정규화
  */
 function parseCsv(text) {
   const rows = [];
@@ -37,48 +44,68 @@ function parseCsv(text) {
     const ch = text[i];
 
     if (ch === '"') {
-      // "" → " 로 처리
+      // "" -> " 처리
       if (inQuotes && text[i + 1] === '"') {
         field += '"';
         i++;
       } else {
         inQuotes = !inQuotes;
       }
-    } else if (ch === "\r") {
       continue;
-    } else if (ch === "\n") {
-      if (inQuotes) {
-        field += "\n";
-      } else {
-        row.push(field);
-        rows.push(row);
-        row = [];
-        field = "";
-      }
-    } else if (ch === "," && !inQuotes) {
+    }
+
+    // 구분자 처리
+    if (!inQuotes && (ch === "," || ch === "\n" || ch === "\r")) {
+      // \r\n 처리
+      if (ch === "\r" && text[i + 1] === "\n") i++;
+
       row.push(field);
       field = "";
-    } else {
-      field += ch;
+
+      if (ch === "\n" || ch === "\r") {
+        // 빈 줄 방지(전부 빈값이면 스킵)
+        if (row.some(v => String(v ?? "").trim() !== "")) rows.push(row);
+        row = [];
+      }
+      continue;
     }
+
+    field += ch;
   }
 
-  // 마지막 필드/행
-  row.push(field);
-  rows.push(row);
+  // 마지막 필드/행 처리
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    if (row.some(v => String(v ?? "").trim() !== "")) rows.push(row);
+  }
 
-  if (rows.length === 0) return [];
+  if (!rows.length) return [];
 
-  const header = rows[0].map(h => h.trim());
-  const dataRows = rows.slice(1);
+  // ✅ 헤더 정규화 (BOM/제로폭/nbsp/공백 제거 + trim)
+  const cleanKey = (s) =>
+    String(s ?? "")
+      .replace(/[\uFEFF\u200B\u00A0]/g, "") // BOM + 제로폭 + nbsp
+      .replace(/\s+/g, " ")                // 연속 공백 정리(가독성)
+      .trim();
 
-  return dataRows
-    .filter(r => r.some(v => v && String(v).trim() !== ""))
-    .map(cols => {
-      const obj = {};
-      header.forEach((h, idx) => {
-        obj[h] = (cols[idx] ?? "").toString().trim();
-      });
-      return obj;
-    });
+  const cleanVal = (s) =>
+    String(s ?? "")
+      .replace(/[\uFEFF\u200B\u00A0]/g, "")
+      .trim();
+
+  const headersRaw = rows[0].map(h => cleanKey(h));
+
+  // ✅ 데이터 -> 객체로 변환
+  const out = [];
+  for (let r = 1; r < rows.length; r++) {
+    const arr = rows[r];
+    const obj = {};
+    for (let c = 0; c < headersRaw.length; c++) {
+      const key = headersRaw[c] || `col${c}`;
+      obj[key] = cleanVal(arr[c] ?? "");
+    }
+    out.push(obj);
+  }
+
+  return out;
 }
