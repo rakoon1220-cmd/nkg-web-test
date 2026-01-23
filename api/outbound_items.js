@@ -28,22 +28,31 @@ function asText(v) {
   return String(v).trim();
 }
 
-// ✅ 여러 후보 키 중 존재하는 컬럼을 찾아 값 리턴
+// ✅ 공백/BOM/제로폭/nbsp 등 “보이지 않는 문자”까지 제거해서 느슨하게 컬럼 찾기
 function pickLoose(r, keys) {
-  // 헤더 키를 "공백 제거한 형태"로 재구성
+  const clean = (s) =>
+    String(s ?? "")
+      .replace(/[\s\uFEFF\u200B\u00A0]/g, "") // 공백 + BOM + 제로폭 + nbsp 제거
+      .trim();
+
   const norm = {};
   for (const k of Object.keys(r)) {
-    norm[String(k).replace(/\s+/g, "")] = r[k];
+    norm[clean(k)] = r[k];
   }
 
-  // 찾고 싶은 키도 공백 제거해서 비교
   for (const want of keys) {
-    const v = norm[String(want).replace(/\s+/g, "")];
+    const v = norm[clean(want)];
     if (v !== undefined) return asText(v);
   }
   return "";
 }
 
+function asNum(v, def = 0) {
+  const s = asText(v);
+  if (!s) return def;
+  const n = Number(s.replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(n) ? n : def;
+}
 
 export default async function handler(req, res) {
   // ✅ API 응답 캐시 금지
@@ -58,7 +67,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    // ✅ 각 CSV URL에 timestamp 붙여서 최신 강제
     const [sapRows, wmsRows, barcodeRows] = await Promise.all([
       loadCsv(bust(SAP_ITEM_URL)),
       loadCsv(bust(WMS_URL)),
@@ -67,19 +75,19 @@ export default async function handler(req, res) {
 
     const targetInv = normalizeInv(inv);
 
-    // 1) SAP 자재자동에서 해당 인보이스만 필터
-    const sapList = sapRows.filter(r => {
-      const invCol = normalizeInv(r["인보이스"]);
+    // 1) SAP 자재자동에서 해당 인보이스만 필터 (SAP는 기존 키로도 잘 읽히지만 안전하게 loose도 섞음)
+    const sapList = sapRows.filter((r) => {
+      const invCol = normalizeInv(pickLoose(r, ["인보이스"]) || r["인보이스"]);
       return invCol === targetInv;
     });
 
-    // 2) WMS 맵 (인보이스 + 자재코드 + 박스번호 기준)
+    // 2) WMS 맵 (인보이스 + 자재코드 + 박스번호 기준)  ✅ 여기서 loose로 읽어야 0 문제 해결
     const wmsMap = {};
-    wmsRows.forEach(r => {
-      const invKey = normalizeInv(r["인보이스"]);
-      const mat = asText(r["상품코드"]);
-      const box = asText(r["박스번호"]);
-      const qty = Number(r["수량"] || 0);
+    wmsRows.forEach((r) => {
+      const invKey = normalizeInv(pickLoose(r, ["인보이스", "INV", "INVNO", "INV NO"]) || r["인보이스"]);
+      const mat = pickLoose(r, ["상품코드", "자재코드", "품목코드", "상품 코드", "자재 코드"]);
+      const box = pickLoose(r, ["박스번호", "박스 번호", "BOX", "BOXNO", "BOX NO"]);
+      const qty = asNum(pickLoose(r, ["수량", "QTY", "qty", "수량합계"]) || r["수량"], 0);
 
       if (!invKey || !mat || !box) return;
 
@@ -87,46 +95,41 @@ export default async function handler(req, res) {
       wmsMap[key] = qty;
     });
 
-    // 3) 바코드 맵 (자재번호 + 박스번호 → 바코드)
+    // 3) 바코드 맵 (자재번호 + 박스번호 → 바코드) ✅ 이것도 loose로 안전하게
     const barcodeMap = {};
-    barcodeRows.forEach(r => {
-      const mat = asText(r["자재번호"]);
-      const box = asText(r["박스번호"]);
-      const barcode = asText(r["바코드"]);
+    barcodeRows.forEach((r) => {
+      const mat = pickLoose(r, ["자재번호", "자재코드", "상품코드"]);
+      const box = pickLoose(r, ["박스번호", "박스 번호"]);
+      const barcode = pickLoose(r, ["바코드", "BARCODE", "barcode"]);
+      const name = pickLoose(r, ["자재내역", "품명", "상품명"]);
+
       if (!mat || !barcode) return;
 
       const key = `${mat}__${box}`;
       if (!barcodeMap[key]) {
-        barcodeMap[key] = {
-          barcode,
-          name: r["자재내역"] || "",
-          box,
-        };
+        barcodeMap[key] = { barcode, name, box };
       }
     });
 
     // 4) 최종 아이템 리스트 구성 (+ work 추가)
-    const items = sapList.map(r => {
+    const items = sapList.map((r) => {
       const no = asText(r["번호"]);
       const mat = asText(r["자재코드"]);
       const box = asText(r["박스번호"]);
       const name = asText(r["자재내역"]);
-      const sapQty = Number(r["출고"] || 0);
+      const sapQty = asNum(r["출고"], 0);
       const unit = asText(r["단위"]);
 
       const invMatKey = asText(r["인보이스+자재코드"]);
       const wmsKey = `${targetInv}__${mat}__${box}`;
-      const wmsQty = Number(wmsMap[wmsKey] || 0);
+      const wmsQty = asNum(wmsMap[wmsKey] ?? 0, 0);
 
       const compare = sapQty - wmsQty;
 
-      // ✅ sap자재자동 S열 값 (헤더명 후보)
-      // S열 헤더가 "작업"이면 바로 잡힘.
-      // 혹시 다른 이름이면 여기 배열에 추가하면 됨.
+      // ✅ S열 작업여부(O/X)
       const work = pickLoose(r, ["작업여부", "작업 여부", "작업", "WORK", "work"]);
 
-
-      // 바코드 매핑: 자재번호 + 박스번호 기준
+      // 바코드 매핑
       const barcodeKey = `${mat}__${box}`;
       const binfo = barcodeMap[barcodeKey];
       const barcode = binfo ? binfo.barcode : "";
@@ -141,7 +144,7 @@ export default async function handler(req, res) {
         wms: wmsQty,
         compare,
         unit,
-        work, // ✅ 추가
+        work,
         barcode,
         status: "미완료",
       };
