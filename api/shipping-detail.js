@@ -1,4 +1,4 @@
-// api/shipping-detail.js — 출고 상세내역 최종 안정판 (WMS 0 FIX)
+// api/shipping-detail.js — 출고 상세내역 최종 안정판 (WMS 0 FIX + MAT NORMALIZE FIX)
 import { loadCsv } from "./_csv.js";
 
 const SAP_CSV_URL =
@@ -13,12 +13,6 @@ function bust(url) {
   return url.includes("?") ? `${url}&t=${t}` : `${url}?t=${t}`;
 }
 
-// ✅ invoice 정규화(숫자만)
-function normalizeInv(v) {
-  if (!v) return "";
-  return String(v).replace(/[^0-9]/g, "").replace(/^0+/, "");
-}
-
 function asText(v) {
   if (v === null || v === undefined) return "";
   return String(v).trim();
@@ -29,6 +23,28 @@ function asNum(v, def = 0) {
   if (!s) return def;
   const n = Number(s.replace(/[^0-9.-]/g, ""));
   return Number.isFinite(n) ? n : def;
+}
+
+// ✅ invoice 정규화(숫자만)
+function normalizeInv(v) {
+  if (!v) return "";
+  return String(v).replace(/[^0-9]/g, "").replace(/^0+/, "");
+}
+
+// ✅ 자재코드 정규화(숫자만)  ← ★ 이번 이슈 핵심
+function normalizeMat(v) {
+  if (!v) return "";
+  return String(v)
+    .replace(/[^0-9]/g, "")   // 콤마, .0, 공백, 문자 제거
+    .replace(/^0+/, "");
+}
+
+// ✅ keyFull 정규화(공백/BOM/제로폭 제거)
+function normalizeKeyFull(v) {
+  if (!v) return "";
+  return String(v)
+    .replace(/[\s\uFEFF\u200B\u00A0]/g, "") // 스페이스/개행/nbsp/제로폭 제거
+    .trim();
 }
 
 // ✅ 헤더명 후보 중 값 뽑기 (공백/BOM/제로폭까지 무시)
@@ -48,10 +64,10 @@ function pickLoose(r, keys) {
   return "";
 }
 
-// ✅ keyFull 형태 후보 2개 (SAP/WMS에서 형태가 다를 수 있어서)
+// ✅ key 후보 생성: inv는 숫자정규화, mat도 숫자정규화
 function makeKeyCandidates(inv, mat) {
   const i = normalizeInv(inv);
-  const m = asText(mat);
+  const m = normalizeMat(mat);
   if (!i || !m) return [];
   return [`${i}__${m}`, `${i}${m}`];
 }
@@ -86,20 +102,35 @@ export default async function handler(req, res) {
     /* ----------------------------------------------------
        3) WMS → Map(keyFull → 입고수량 합계)
        - keyFull 컬럼이 있으면 우선
-       - 없으면 inv+mat로 key 후보를 만들어 저장
+       - 없으면 inv+mat로 key 후보 만들어 저장
+       - ★ keyFull / mat 전부 정규화해서 저장
     ---------------------------------------------------- */
     const wmsMap = new Map();
 
     for (const r of wmsRows || []) {
-      const inv = pickLoose(r, ["인보이스", "INV", "INVNO", "INV NO"]);
-      const mat = pickLoose(r, ["상품코드", "자재코드", "품목코드", "상품 코드", "자재 코드"]);
-      const qty = asNum(pickLoose(r, ["수량", "QTY", "qty", "입고", "입고수량", "입고 수량"]), 0);
+      const invRaw = pickLoose(r, ["인보이스", "INV", "INVNO", "INV NO"]);
+      const matRaw = pickLoose(r, ["상품코드", "자재코드", "품목코드", "상품 코드", "자재 코드"]);
 
-      const keyFullDirect = pickLoose(r, ["인보이스+자재코드", "인보이스+자재", "KEYFULL", "INV+MAT"]);
+      const qty = asNum(
+        pickLoose(r, ["수량", "QTY", "qty", "입고", "입고수량", "입고 수량"]),
+        0
+      );
+
+      const keyFullDirectRaw = pickLoose(r, [
+        "인보이스+자재코드",
+        "인보이스+자재",
+        "KEYFULL",
+        "INV+MAT",
+      ]);
 
       const keys = [];
-      if (keyFullDirect) keys.push(asText(keyFullDirect));
-      keys.push(...makeKeyCandidates(inv, mat));
+
+      // keyFullDirect는 정규화해서 Map 키로 저장
+      const keyFullDirect = normalizeKeyFull(keyFullDirectRaw);
+      if (keyFullDirect) keys.push(keyFullDirect);
+
+      // inv+mat 후보도 inv/mat 정규화 반영
+      keys.push(...makeKeyCandidates(invRaw, matRaw));
 
       for (const k of keys) {
         if (!k) continue;
@@ -109,6 +140,7 @@ export default async function handler(req, res) {
 
     /* ----------------------------------------------------
        4) SAP → invoice 필터 + 상세내역 구성
+       - ★ SAP keyFull / code도 정규화해서 매칭
     ---------------------------------------------------- */
     const result = [];
 
@@ -116,13 +148,22 @@ export default async function handler(req, res) {
       const inv = normalizeInv(pickLoose(r, ["인보이스"]) || r["인보이스"]);
       if (inv !== invoice) continue;
 
-      const keyFull =
-        pickLoose(r, ["인보이스+자재코드", "인보이스+자재", "KEYFULL"]) || asText(r["인보이스+자재코드"]);
+      const keyFullRaw =
+        pickLoose(r, ["인보이스+자재코드", "인보이스+자재", "KEYFULL"]) ||
+        asText(r["인보이스+자재코드"]);
+
+      const keyFull = normalizeKeyFull(keyFullRaw);
 
       const date = pickLoose(r, ["출고일"]) || asText(r["출고일"]);
       const country = pickLoose(r, ["국가"]) || asText(r["국가"]);
-      const code = pickLoose(r, ["자재코드", "자재번호", "상품코드"]) || asText(r["자재코드"]);
-      const name = pickLoose(r, ["자재내역", "품명", "상품명"]) || asText(r["자재내역"]);
+
+      const codeRaw =
+        pickLoose(r, ["자재코드", "자재번호", "상품코드"]) || asText(r["자재코드"]);
+      const code = normalizeMat(codeRaw); // ★ 숫자정규화
+
+      const name =
+        pickLoose(r, ["자재내역", "품명", "상품명"]) || asText(r["자재내역"]);
+
       const outQty = asNum(pickLoose(r, ["출고"]) || r["출고"], 0);
       const box = pickLoose(r, ["박스번호", "박스 번호"]) || asText(r["박스번호"]);
       const work = pickLoose(r, ["작업여부", "작업 여부", "작업", "WORK"]) || "";
@@ -151,7 +192,7 @@ export default async function handler(req, res) {
         invoice: invoiceRaw, // 화면에는 원본 유지
         date,
         country,
-        code,
+        code: codeRaw, // 화면 표시는 원본 코드 유지(원하면 code(정규화)로 바꿔도 됨)
         name,
         box,
         outQty,
@@ -169,12 +210,14 @@ export default async function handler(req, res) {
         ok: true,
         data: result,
         meta: {
+          invoiceRaw,
+          invoiceNorm: invoice,
           sapCount: sapRows?.length || 0,
           wmsCount: wmsRows?.length || 0,
           sapKeys0: sapRows?.[0] ? Object.keys(sapRows[0]) : [],
           wmsKeys0: wmsRows?.[0] ? Object.keys(wmsRows[0]) : [],
           wmsMapSize: wmsMap.size,
-          sampleWmsMapKeys: Array.from(wmsMap.keys()).slice(0, 20),
+          sampleWmsMapKeys: Array.from(wmsMap.keys()).slice(0, 30),
         },
       });
     }
