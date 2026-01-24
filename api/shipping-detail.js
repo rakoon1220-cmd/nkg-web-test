@@ -1,4 +1,4 @@
-// api/shipping-detail.js — 출고 상세내역 최종 안정판 (WMS 0 FIX + MAT NORMALIZE FIX)
+// api/shipping-detail.js — 출고 상세내역 최종 안정판 (9자리 인보이스/지수표기 FIX + WMS 0 FIX)
 import { loadCsv } from "./_csv.js";
 
 const SAP_CSV_URL =
@@ -19,31 +19,74 @@ function asText(v) {
 }
 
 function asNum(v, def = 0) {
-  const s = asText(v);
-  if (!s) return def;
+  const s0 = asText(v);
+  if (!s0) return def;
+
+  // 콤마/공백 제거 후 숫자만
+  const s = s0.replace(/,/g, "");
   const n = Number(s.replace(/[^0-9.-]/g, ""));
   return Number.isFinite(n) ? n : def;
 }
 
-// ✅ invoice 정규화(숫자만)
+/**
+ * ✅ 인보이스 정규화
+ * - "123456" / "123456789" 정상
+ * - "268377822.0" => "268377822"
+ * - "2.68377822E+08" => "268377822"  (지수표기 복원)
+ * - 콤마/공백/문자 섞임 제거
+ */
 function normalizeInv(v) {
-  if (!v) return "";
-  return String(v).replace(/[^0-9]/g, "").replace(/^0+/, "");
+  if (v === null || v === undefined) return "";
+  let s = String(v).trim();
+  if (!s) return "";
+
+  // 이미 숫자만이면 OK
+  if (/^\d+$/.test(s)) return s.replace(/^0+/, "");
+
+  // 콤마 제거
+  s = s.replace(/,/g, "");
+
+  // 268377822.0 같은 형태 처리
+  if (/^\d+\.0+$/.test(s)) s = s.replace(/\.0+$/, "");
+
+  // 지수표기 처리 (예: 2.68377822E+08)
+  if (/[eE]/.test(s)) {
+    const n = Number(s);
+    if (Number.isFinite(n)) return String(Math.round(n)).replace(/^0+/, "");
+  }
+
+  // 마지막 fallback: 숫자만 추출
+  const digits = s.replace(/[^0-9]/g, "");
+  return digits.replace(/^0+/, "");
 }
 
-// ✅ 자재코드 정규화(숫자만)  ← ★ 이번 이슈 핵심
+/**
+ * ✅ 자재코드 정규화 (숫자만)
+ * - "268377822" / "268377822.0" / "268,377,822" 모두 동일 처리
+ */
 function normalizeMat(v) {
-  if (!v) return "";
-  return String(v)
-    .replace(/[^0-9]/g, "")   // 콤마, .0, 공백, 문자 제거
-    .replace(/^0+/, "");
+  if (v === null || v === undefined) return "";
+  let s = String(v).trim();
+  if (!s) return "";
+
+  s = s.replace(/,/g, "");
+  if (/^\d+\.0+$/.test(s)) s = s.replace(/\.0+$/, "");
+
+  // 지수표기까지 들어오는 경우도 혹시 대비
+  if (/[eE]/.test(s)) {
+    const n = Number(s);
+    if (Number.isFinite(n)) return String(Math.round(n)).replace(/^0+/, "");
+  }
+
+  const digits = s.replace(/[^0-9]/g, "");
+  return digits.replace(/^0+/, "");
 }
 
 // ✅ keyFull 정규화(공백/BOM/제로폭 제거)
 function normalizeKeyFull(v) {
   if (!v) return "";
   return String(v)
-    .replace(/[\s\uFEFF\u200B\u00A0]/g, "") // 스페이스/개행/nbsp/제로폭 제거
+    .replace(/[\s\uFEFF\u200B\u00A0]/g, "")
     .trim();
 }
 
@@ -64,7 +107,7 @@ function pickLoose(r, keys) {
   return "";
 }
 
-// ✅ key 후보 생성: inv는 숫자정규화, mat도 숫자정규화
+// ✅ key 후보 생성: inv/mat 모두 정규화
 function makeKeyCandidates(inv, mat) {
   const i = normalizeInv(inv);
   const m = normalizeMat(mat);
@@ -101,15 +144,22 @@ export default async function handler(req, res) {
 
     /* ----------------------------------------------------
        3) WMS → Map(keyFull → 입고수량 합계)
-       - keyFull 컬럼이 있으면 우선
-       - 없으면 inv+mat로 key 후보 만들어 저장
-       - ★ keyFull / mat 전부 정규화해서 저장
+       - keyFull 우선
+       - 없으면 inv+mat 후보로 키 생성
+       - keyFull / inv / mat 모두 정규화 저장
     ---------------------------------------------------- */
     const wmsMap = new Map();
 
     for (const r of wmsRows || []) {
       const invRaw = pickLoose(r, ["인보이스", "INV", "INVNO", "INV NO"]);
-      const matRaw = pickLoose(r, ["상품코드", "자재코드", "품목코드", "상품 코드", "자재 코드"]);
+      const matRaw = pickLoose(r, [
+        "상품코드",
+        "자재코드",
+        "자재번호",
+        "품목코드",
+        "상품 코드",
+        "자재 코드",
+      ]);
 
       const qty = asNum(
         pickLoose(r, ["수량", "QTY", "qty", "입고", "입고수량", "입고 수량"]),
@@ -125,11 +175,9 @@ export default async function handler(req, res) {
 
       const keys = [];
 
-      // keyFullDirect는 정규화해서 Map 키로 저장
       const keyFullDirect = normalizeKeyFull(keyFullDirectRaw);
       if (keyFullDirect) keys.push(keyFullDirect);
 
-      // inv+mat 후보도 inv/mat 정규화 반영
       keys.push(...makeKeyCandidates(invRaw, matRaw));
 
       for (const k of keys) {
@@ -140,18 +188,18 @@ export default async function handler(req, res) {
 
     /* ----------------------------------------------------
        4) SAP → invoice 필터 + 상세내역 구성
-       - ★ SAP keyFull / code도 정규화해서 매칭
+       - invoice 매칭이 핵심 (6자리/9자리 모두)
     ---------------------------------------------------- */
     const result = [];
 
     for (const r of sapRows || []) {
-      const inv = normalizeInv(pickLoose(r, ["인보이스"]) || r["인보이스"]);
+      const sapInvRaw = pickLoose(r, ["인보이스"]) || r["인보이스"];
+      const inv = normalizeInv(sapInvRaw);
       if (inv !== invoice) continue;
 
       const keyFullRaw =
         pickLoose(r, ["인보이스+자재코드", "인보이스+자재", "KEYFULL"]) ||
         asText(r["인보이스+자재코드"]);
-
       const keyFull = normalizeKeyFull(keyFullRaw);
 
       const date = pickLoose(r, ["출고일"]) || asText(r["출고일"]);
@@ -159,7 +207,7 @@ export default async function handler(req, res) {
 
       const codeRaw =
         pickLoose(r, ["자재코드", "자재번호", "상품코드"]) || asText(r["자재코드"]);
-      const code = normalizeMat(codeRaw); // ★ 숫자정규화
+      const codeNorm = normalizeMat(codeRaw);
 
       const name =
         pickLoose(r, ["자재내역", "품명", "상품명"]) || asText(r["자재내역"]);
@@ -177,7 +225,7 @@ export default async function handler(req, res) {
       if (keyFull && wmsMap.has(keyFull)) {
         inQty = asNum(wmsMap.get(keyFull), 0);
       } else {
-        const cands = makeKeyCandidates(invoice, code);
+        const cands = makeKeyCandidates(invoice, codeNorm);
         for (const k of cands) {
           if (wmsMap.has(k)) {
             inQty = asNum(wmsMap.get(k), 0);
@@ -192,7 +240,7 @@ export default async function handler(req, res) {
         invoice: invoiceRaw, // 화면에는 원본 유지
         date,
         country,
-        code: codeRaw, // 화면 표시는 원본 코드 유지(원하면 code(정규화)로 바꿔도 됨)
+        code: codeRaw, // 원본 표시
         name,
         box,
         outQty,
@@ -206,6 +254,17 @@ export default async function handler(req, res) {
     }
 
     if (dbg) {
+      // invoice가 안 잡힐 때 원인 확인용 샘플
+      const sapInvSamples = [];
+      for (let i = 0; i < Math.min(30, (sapRows || []).length); i++) {
+        const r = sapRows[i];
+        const raw = pickLoose(r, ["인보이스"]) || r["인보이스"];
+        sapInvSamples.push({
+          raw: asText(raw),
+          norm: normalizeInv(raw),
+        });
+      }
+
       return res.status(200).json({
         ok: true,
         data: result,
@@ -218,6 +277,7 @@ export default async function handler(req, res) {
           wmsKeys0: wmsRows?.[0] ? Object.keys(wmsRows[0]) : [],
           wmsMapSize: wmsMap.size,
           sampleWmsMapKeys: Array.from(wmsMap.keys()).slice(0, 30),
+          sapInvSamples, // ✅ SAP 인보이스 raw/norm 샘플 30개
         },
       });
     }
