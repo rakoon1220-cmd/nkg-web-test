@@ -29,7 +29,10 @@
       color: #111827;
       border-bottom: 1px solid #d1d5db;
       text-align: center;
+      cursor: pointer;
+      user-select: none;
     }
+    table.ui-table thead th:hover { background: #e5e7eb; }
     table.ui-table tbody tr:hover { background:#f8fafc; }
 
     td.name-cell { white-space: normal; min-width: 260px; }
@@ -38,6 +41,14 @@
       outline: 2px solid #93c5fd;
       outline-offset: -2px;
       background: #f8fafc;
+    }
+
+    /* 정렬 아이콘 */
+    .sort-icon {
+      display:inline-block;
+      font-size: 10px;
+      margin-left: 6px;
+      color:#64748b;
     }
 
     @media (max-width: 640px) {
@@ -50,143 +61,124 @@
 
 <body class="min-h-screen bg-slate-100">
 
-  <!-- NAV -->
-  <script src="nav.js"></script>
+  <!-- ✅ 공통 NAV -->
+  <script src="/nav.js"></script>
 
-  <!-- 여기부터 기존 stock_warehouse.html 내용 -->
   <main class="pt-16 pb-10">
-    ...
+    <div class="max-w-6xl mx-auto px-4">
 
+      <!-- 상단 카드 -->
+      <section class="mb-4">
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+          <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+            <div>
+              <div class="text-xs text-slate-500">재고 조사</div>
+              <h1 class="text-lg md:text-xl font-semibold text-slate-800">창고별 재고조회</h1>
+              <div class="text-[12px] text-slate-500 mt-1">
+                (상품코드&박스번호) + (B열 값) 조회 / 앞 2자리 입력도 전체 조회
+              </div>
+            </div>
 
-<body class="min-h-screen bg-slate-100">
-
-<nav class="bg-[#0A1833] text-white fixed top-0 w-full z-50 shadow">
-  <div class="max-w-6xl mx-auto px-4">
-    <div class="flex justify-between items-center h-14">
-      <a href="/index.html" class="flex items-center gap-2">
-        <div class="w-8 h-8 bg-sky-500 rounded-lg flex items-center justify-center text-xs font-bold">NK</div>
-        <span class="font-semibold text-sm tracking-wide">남경 검수시스템</span>
-      </a>
-
-      <div class="flex items-center gap-2 text-xs text-white/80">
-        <span id="csvStatus" class="hidden sm:inline">CSV: 대기</span>
-        <button id="reloadBtn"
-          class="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 active:scale-[0.99] transition">
-          새로고침
-        </button>
-      </div>
-    </div>
-  </div>
-</nav>
-
-<main class="pt-16 pb-10">
-  <div class="max-w-6xl mx-auto px-4">
-
-    <section class="mb-4">
-      <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
-        <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
-          <div>
-            <div class="text-xs text-slate-500">재고 조사</div>
-            <h1 class="text-lg md:text-xl font-semibold text-slate-800">창고별 재고조회</h1>
-            <div class="text-[12px] text-slate-500 mt-1">
-              (상품코드&박스번호) + (B열 값) 조회 / 앞 2자리 입력도 전체 조회
+            <div class="flex gap-2">
+              <button id="exportBtn"
+                class="px-3 py-2 rounded-xl text-sm bg-emerald-600 text-white hover:bg-emerald-700 active:scale-[0.99] transition">
+                엑셀 출력
+              </button>
+              <button id="showAllBtn"
+                class="px-3 py-2 rounded-xl text-sm bg-slate-900 text-white hover:bg-slate-800 active:scale-[0.99] transition">
+                전체보기
+              </button>
             </div>
           </div>
 
-          <div class="flex gap-2">
-            <button id="exportBtn"
-              class="px-3 py-2 rounded-xl text-sm bg-emerald-600 text-white hover:bg-emerald-700 active:scale-[0.99] transition">
-              엑셀 출력
-            </button>
-            <button id="showAllBtn"
-              class="px-3 py-2 rounded-xl text-sm bg-slate-900 text-white hover:bg-slate-800 active:scale-[0.99] transition">
-              전체보기
-            </button>
+          <div class="mt-2 flex items-center justify-between gap-2">
+            <div id="statusText" class="text-xs text-slate-500">CSV 로딩 전</div>
+            <div class="flex items-center gap-3">
+              <div id="csvStatus" class="text-xs text-slate-500">CSV: 대기</div>
+              <div id="countText" class="text-xs text-slate-500">0건</div>
+            </div>
           </div>
         </div>
+      </section>
 
-        <div class="mt-2 flex items-center justify-between gap-2">
-          <div id="statusText" class="text-xs text-slate-500">CSV 로딩 전</div>
-          <div id="countText" class="text-xs text-slate-500">0건</div>
-        </div>
-      </div>
-    </section>
+      <!-- 검색 카드 -->
+      <section class="mb-4">
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+          <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
 
-    <section class="mb-4">
-      <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
-        <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
+            <div class="md:col-span-6">
+              <label class="block text-xs text-slate-500 mb-1">상품코드 & 박스번호 (한 칸)</label>
+              <input id="keyInput" type="text"
+                class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-sky-200"
+                placeholder="예: 1105601 또는 A870 또는 1105601 A870" />
+            </div>
 
-          <div class="md:col-span-6">
-            <label class="block text-xs text-slate-500 mb-1">상품코드 & 박스번호 (한 칸)</label>
-            <input id="keyInput" type="text"
-              class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-sky-200"
-              placeholder="예: 1105601 또는 A870 또는 1105601 A870" />
-          </div>
+            <div class="md:col-span-4">
+              <label class="block text-xs text-slate-500 mb-1">B열 값 (인보이스/BO0101/EX01-101 등)</label>
+              <input id="bInput" type="text"
+                class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-sky-200"
+                placeholder="예: BO / EX / 123456" />
+            </div>
 
-          <div class="md:col-span-4">
-            <label class="block text-xs text-slate-500 mb-1">B열 값 (인보이스/BO0101/EX01-101 등)</label>
-            <input id="bInput" type="text"
-              class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-sky-200"
-              placeholder="예: BO / EX / 123456" />
-          </div>
-
-          <div class="md:col-span-2 flex gap-2 items-end">
-            <button id="searchBtn"
-              class="flex-1 bg-sky-500 text-white rounded-xl px-4 py-2 text-sm font-semibold shadow-sm hover:bg-sky-600 active:scale-[0.99] transition">
-              조회
-            </button>
-            <button id="clearBtn"
-              class="px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-700 hover:bg-slate-50 active:scale-[0.99] transition">
-              초기화
-            </button>
+            <div class="md:col-span-2 flex gap-2 items-end">
+              <button id="searchBtn"
+                class="flex-1 bg-sky-500 text-white rounded-xl px-4 py-2 text-sm font-semibold shadow-sm hover:bg-sky-600 active:scale-[0.99] transition">
+                조회
+              </button>
+              <button id="clearBtn"
+                class="px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-700 hover:bg-slate-50 active:scale-[0.99] transition">
+                초기화
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <section class="mb-4">
-      <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
-        <div class="flex flex-wrap gap-2">
-          <button class="whBtn px-3 py-2 rounded-xl text-sm border border-slate-200 hover:bg-slate-50 transition" data-key="EX">EX창고</button>
-          <button class="whBtn px-3 py-2 rounded-xl text-sm border border-slate-200 hover:bg-slate-50 transition" data-key="GA">GA창고</button>
-          <button class="whBtn px-3 py-2 rounded-xl text-sm border border-slate-200 hover:bg-slate-50 transition" data-key="BO">BO창고</button>
-          <button class="whBtn px-3 py-2 rounded-xl text-sm border border-slate-200 hover:bg-slate-50 transition" data-key="SSS">SSS창고</button>
-          <button class="whBtn px-3 py-2 rounded-xl text-sm border border-slate-200 hover:bg-slate-50 transition" data-key="파손">파손</button>
-          <button class="whBtn px-3 py-2 rounded-xl text-sm border border-slate-200 hover:bg-slate-50 transition" data-key="CBM">CBM초과</button>
+      <!-- 창고 버튼 -->
+      <section class="mb-4">
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+          <div class="flex flex-wrap gap-2">
+            <button class="whBtn px-3 py-2 rounded-xl text-sm border border-slate-200 hover:bg-slate-50 transition" data-key="EX">EX창고</button>
+            <button class="whBtn px-3 py-2 rounded-xl text-sm border border-slate-200 hover:bg-slate-50 transition" data-key="GA">GA창고</button>
+            <button class="whBtn px-3 py-2 rounded-xl text-sm border border-slate-200 hover:bg-slate-50 transition" data-key="BO">BO창고</button>
+            <button class="whBtn px-3 py-2 rounded-xl text-sm border border-slate-200 hover:bg-slate-50 transition" data-key="SSS">SSS창고</button>
+            <button class="whBtn px-3 py-2 rounded-xl text-sm border border-slate-200 hover:bg-slate-50 transition" data-key="파손">파손</button>
+            <button class="whBtn px-3 py-2 rounded-xl text-sm border border-slate-200 hover:bg-slate-50 transition" data-key="CBM">CBM초과</button>
+          </div>
+          <div class="mt-2 text-[12px] text-slate-500">버튼은 B열 <span class="font-semibold">포함(contains)</span> 기준</div>
         </div>
-        <div class="mt-2 text-[12px] text-slate-500">버튼은 B열 <span class="font-semibold">포함(contains)</span> 기준</div>
-      </div>
-    </section>
+      </section>
 
-    <section>
-      <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-        <div class="overflow-auto">
-          <table class="ui-table" id="resultTable">
-            <thead>
-  <tr>
-    <th style="min-width:90px;">로케이션</th>
-    <th style="min-width:90px;">상품</th>
-    <th style="min-width:80px;">박스</th>
-    <th style="min-width:320px;">상품명</th>
-    <th style="min-width:70px;">재고</th>
-    <th style="min-width:110px;">유통기한</th>
-    <th style="min-width:180px;">비고</th>
-  </tr>
-</thead>
+      <!-- 테이블 -->
+      <section>
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+          <div class="overflow-auto">
+            <table class="ui-table" id="resultTable">
+              <thead>
+                <tr>
+                  <th data-sort="LOC">로케이션<span class="sort-icon" id="sort_LOC"></span></th>
+                  <th data-sort="PROD">상품<span class="sort-icon" id="sort_PROD"></span></th>
+                  <th data-sort="BOX">박스<span class="sort-icon" id="sort_BOX"></span></th>
+                  <th data-sort="NAME">상품명<span class="sort-icon" id="sort_NAME"></span></th>
+                  <th data-sort="QTY">재고<span class="sort-icon" id="sort_QTY"></span></th>
+                  <th data-sort="EXP">유통기한<span class="sort-icon" id="sort_EXP"></span></th>
+                  <th data-sort="">비고</th>
+                </tr>
+              </thead>
+              <tbody id="tbody">
+                <tr><td colspan="7" style="padding:14px; color:#6b7280;">데이터 로딩 중…</td></tr>
+              </tbody>
+            </table>
+          </div>
 
-            <tbody id="tbody">
-              <tr><td colspan="7" style="padding:14px; color:#6b7280;">데이터 로딩 중…</td></tr>
-            </tbody>
-          </table>
+          <div class="px-4 py-3 border-t border-slate-100 text-[11px] text-slate-500">
+            헤더를 클릭하면 정렬됩니다(오름/내림). 엑셀 출력은 스샷형 간격으로 저장됩니다.
+          </div>
         </div>
-        <div class="px-4 py-3 border-t border-slate-100 text-[11px] text-slate-500">
-          엑셀 출력은 스샷형 간격(컬럼폭/행높이/폰트/여백)으로 강제됩니다.
-        </div>
-      </div>
-    </section>
+      </section>
 
-  </div>
-</main>
+    </div>
+  </main>
 
 <script>
 const CSV_URL_RAW =
@@ -196,21 +188,22 @@ const CSV_URL_RAW =
 const API_BASE = window.location.origin;
 const CSV_URL = `${API_BASE}/api/_csv?url=${encodeURIComponent(CSV_URL_RAW)}`;
 
-
 // ✅ CSV 열 인덱스(0부터)
-// A=0, B=1, C=2 ...
 const COL = {
-  LOC: 1,    // ✅ 로케이션 = B열
-  PROD: 2,   // 상품코드
-  BOX: 3,    // 박스번호
-  NAME: 4,   // 상품명
-  QTY: 5,    // ✅ 재고
-  EXP: 6     // ✅ 유통기한
+  LOC: 1,    // 로케이션(B열)
+  PROD: 2,
+  BOX: 3,
+  NAME: 4,
+  QTY: 5,    // 재고
+  EXP: 6     // 유통기한
 };
 
-
-
 let ALL_ROWS = [];
+let CURRENT_ROWS = [];          // 현재 화면에 표시 중인 rows
+const ROW_REMARKS = new Map();  // rowKey -> remark 텍스트 저장 (정렬/재렌더에도 유지)
+
+let sortState = { key: "LOC", dir: "asc" }; // 기본 정렬 상태
+
 const $ = (id) => document.getElementById(id);
 function setCsvStatus(msg){ $("csvStatus").textContent = "CSV: " + msg; }
 function setCount(n){ $("countText").textContent = n.toLocaleString() + "건"; }
@@ -221,7 +214,19 @@ function setStatus(msg, tone="base"){
 }
 function asText(v){ return (v===null||v===undefined) ? "" : String(v).trim(); }
 function upper(v){ return asText(v).toUpperCase(); }
-function normalizeQty(v){ return asText(v).replace(/,/g,""); }
+function normalizeQty(v){ return asText(v).replace(/,/g,"").trim(); }
+
+function rowKey(r){
+  // 동일 상품/박스/유통기한이라도 분리되게 키 구성
+  // (B열+상품+박스+유통기한+재고) 조합
+  return [
+    asText(r[COL.LOC]),
+    asText(r[COL.PROD]),
+    asText(r[COL.BOX]),
+    asText(r[COL.EXP]),
+    normalizeQty(r[COL.QTY])
+  ].join("|");
+}
 
 function parseCsv(text){
   const rows = [];
@@ -264,7 +269,11 @@ async function loadCsv(){
     ALL_ROWS = rows.slice(1);
     setCsvStatus("완료 (" + ALL_ROWS.length.toLocaleString() + "행)");
     setStatus("CSV 로딩 완료", "ok");
-    renderRows(ALL_ROWS);
+
+    // 기본 정렬(로케이션 asc)
+    CURRENT_ROWS = ALL_ROWS.slice();
+    sortState = { key: "LOC", dir: "asc" };
+    sortAndRender();
   }catch(err){
     console.error(err);
     setCsvStatus("오류");
@@ -277,6 +286,22 @@ function splitKeyInput(raw){
   const s = asText(raw);
   if(!s) return [];
   return s.split(/[ \t&,/|]+/g).map(x=>x.trim()).filter(Boolean);
+}
+
+function captureRemarks(){
+  // 현재 화면의 비고를 Map에 저장 (정렬/필터로 재렌더해도 유지)
+  const trs = Array.from(document.querySelectorAll("#tbody tr"));
+  trs.forEach(tr=>{
+    const tds = tr.querySelectorAll("td");
+    if(tds.length !== 7) return;
+    const loc = tds[0].innerText.trim();
+    const prod = tds[1].innerText.trim();
+    const box = tds[2].innerText.trim();
+    const exp = tds[5].innerText.trim();
+    const qty = tds[4].innerText.trim();
+    const key = [loc, prod, box, exp, qty.replace(/,/g,"")].join("|");
+    ROW_REMARKS.set(key, tds[6].innerText.trim());
+  });
 }
 
 function renderRows(rows){
@@ -298,6 +323,9 @@ function renderRows(rows){
     const qty  = normalizeQty(r[COL.QTY]) || "-";
     const exp  = asText(r[COL.EXP])  || "-";
 
+    const key = [loc, prod, box, exp, qty].join("|");
+    const remark = ROW_REMARKS.get(key) || "";
+
     return `
       <tr>
         <td style="text-align:center;">${loc}</td>
@@ -306,24 +334,68 @@ function renderRows(rows){
         <td class="name-cell">${name}</td>
         <td style="text-align:right;">${qty}</td>
         <td style="text-align:center;">${exp}</td>
-        <td class="remark" contenteditable="true"></td>
+        <td class="remark" contenteditable="true" data-rowkey="${key}">${remark}</td>
       </tr>
     `;
   }).join("");
+
+  // remark 입력시 즉시 Map에 반영
+  document.querySelectorAll('td.remark[contenteditable="true"]').forEach(td=>{
+    td.addEventListener("input", (e)=>{
+      const k = e.target.getAttribute("data-rowkey");
+      ROW_REMARKS.set(k, e.target.innerText.trim());
+    });
+  });
 
   if(rows.length > limit) setStatus(`결과 ${rows.length.toLocaleString()}건 (표시는 ${limit.toLocaleString()}건까지)`, "base");
   else setStatus(`결과 ${rows.length.toLocaleString()}건`, "ok");
 }
 
+function getSortValue(r, key){
+  if(key === "LOC") return upper(r[COL.LOC]);
+  if(key === "PROD") return upper(r[COL.PROD]);
+  if(key === "BOX") return upper(r[COL.BOX]);
+  if(key === "NAME") return upper(r[COL.NAME]);
+  if(key === "EXP") return upper(r[COL.EXP]);
+  if(key === "QTY"){
+    const n = parseFloat(normalizeQty(r[COL.QTY]) || "0");
+    return Number.isFinite(n) ? n : 0;
+  }
+  return "";
+}
 
+function sortRows(rows, key, dir){
+  const mult = (dir === "asc") ? 1 : -1;
+  rows.sort((a,b)=>{
+    const va = getSortValue(a, key);
+    const vb = getSortValue(b, key);
+    if(typeof va === "number" && typeof vb === "number") return (va - vb) * mult;
+    return String(va).localeCompare(String(vb), "ko") * mult;
+  });
+}
+
+function updateSortIcons(){
+  ["LOC","PROD","BOX","NAME","QTY","EXP"].forEach(k=>{
+    const el = document.getElementById("sort_"+k);
+    if(!el) return;
+    if(sortState.key !== k) el.textContent = "";
+    else el.textContent = (sortState.dir === "asc") ? "▲" : "▼";
+  });
+}
+
+function sortAndRender(){
+  captureRemarks();
+  const rows = CURRENT_ROWS.slice();
+  sortRows(rows, sortState.key, sortState.dir);
+  updateSortIcons();
+  renderRows(rows);
+  CURRENT_ROWS = rows;
+}
 
 function applySearch(){
-  const tokens = splitKeyInput($("keyInput").value); // 상품코드&박스번호 한칸
-  const bKey = upper($("bInput").value);             // B열값 입력
+  const tokens = splitKeyInput($("keyInput").value);
+  const bKey = upper($("bInput").value);
 
-  // tokens 처리
-  // - 1개 입력: 숫자면 상품코드, 문자면 박스번호
-  // - 2개 입력: [상품코드, 박스번호] AND
   let prodKey = "", boxKey = "";
   if(tokens.length === 1){
     const t = upper(tokens[0]);
@@ -334,42 +406,36 @@ function applySearch(){
     boxKey  = upper(tokens[1]);
   }
 
-  const filtered = ALL_ROWS.filter(r=>{
-    const rLoc = upper(r[COL.LOC]);   // ✅ B열(로케이션/인보이스 등)
-    const rP   = upper(r[COL.PROD]);  // 상품코드
-    const rB   = upper(r[COL.BOX]);   // 박스번호
+  CURRENT_ROWS = ALL_ROWS.filter(r=>{
+    const rLoc = upper(r[COL.LOC]);
+    const rP   = upper(r[COL.PROD]);
+    const rBox = upper(r[COL.BOX]);
 
-    // ✅ B열값 조회: 앞 2자리만 입력해도 전체 조회 -> startsWith
     if(bKey && !rLoc.startsWith(bKey)) return false;
-
-    // ✅ 상품코드 정확 매칭
     if(prodKey && rP !== prodKey) return false;
-
-    // ✅ 박스번호: 완전일치가 아니라 "포함"으로(BO0101, EX01-101 같은 변형 대응)
-    if(boxKey && !rB.includes(boxKey)) return false;
-
+    if(boxKey && !rBox.includes(boxKey)) return false;
     return true;
   });
 
-  renderRows(filtered);
+  sortAndRender();
 }
-
 
 function filterByWarehouse(k){
   const key = upper(k);
-  renderRows(ALL_ROWS.filter(r => upper(r[COL.LOC]).includes(key))); // ✅ B열 포함
+  CURRENT_ROWS = ALL_ROWS.filter(r => upper(r[COL.LOC]).includes(key));
+  sortAndRender();
 }
-
 
 function clearAll(){
   $("keyInput").value = "";
   $("bInput").value = "";
-  renderRows(ALL_ROWS);
-  setStatus("초기화 완료");
+  CURRENT_ROWS = ALL_ROWS.slice();
+  sortState = { key: "LOC", dir: "asc" };
+  sortAndRender();
 }
 
-/* ✅ 엑셀 출력: 스샷형 간격 고정 */
 function exportToXlsx(){
+  // 화면에 표시된 기준으로 내보내기
   const trs = Array.from(document.querySelectorAll("#resultTable tbody tr"));
   if(!trs.length || (trs.length===1 && trs[0].innerText.includes("결과 없음"))){
     alert("내보낼 데이터가 없습니다.");
@@ -379,32 +445,31 @@ function exportToXlsx(){
   const data = [];
   data.push(["로케이션","상품","박스","상품명","재고","유통기한","비고"]);
 
-
   trs.forEach(tr=>{
     const tds = Array.from(tr.querySelectorAll("td"));
     if(tds.length !== 7) return;
     data.push([
-  tds[0].innerText.trim(), // 로케이션
-  tds[1].innerText.trim(), // 상품
-  tds[2].innerText.trim(), // 박스
-  tds[3].innerText.trim(), // 상품명
-  tds[4].innerText.trim(), // 재고
-  tds[5].innerText.trim(), // 유통기한
-  tds[6].innerText.trim(), // 비고
-]);
-
+      tds[0].innerText.trim(),
+      tds[1].innerText.trim(),
+      tds[2].innerText.trim(),
+      tds[3].innerText.trim(),
+      tds[4].innerText.trim(),
+      tds[5].innerText.trim(),
+      tds[6].innerText.trim(),
+    ]);
   });
 
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(data);
 
+  // 컬럼폭 (상품명/비고 넓게)
   ws["!cols"] = [
     { wch: 12 }, // 로케이션
     { wch: 10 }, // 상품
-    { wch: 48 }, // 상품명
     { wch: 10 }, // 박스
-    { wch: 12 }, // 유통기한
+    { wch: 48 }, // 상품명
     { wch: 8  }, // 재고
+    { wch: 12 }, // 유통기한
     { wch: 22 }  // 비고
   ];
 
@@ -438,8 +503,9 @@ function exportToXlsx(){
 
       if(R===0) ws[addr].s = headerStyle;
       else {
-        if(C===2 || C===6) ws[addr].s = left;     // 상품명/비고
-        else if(C===5) ws[addr].s = right;        // 재고
+        // 상품명(3), 비고(6) left / 재고(4) right / 나머지 center
+        if(C===3 || C===6) ws[addr].s = left;
+        else if(C===4) ws[addr].s = right;
         else ws[addr].s = center;
       }
     }
@@ -454,10 +520,12 @@ function exportToXlsx(){
 }
 
 document.addEventListener("DOMContentLoaded", ()=>{
-  $("reloadBtn").addEventListener("click", loadCsv);
   $("searchBtn").addEventListener("click", applySearch);
   $("clearBtn").addEventListener("click", clearAll);
-  $("showAllBtn").addEventListener("click", ()=>renderRows(ALL_ROWS));
+  $("showAllBtn").addEventListener("click", ()=>{
+    CURRENT_ROWS = ALL_ROWS.slice();
+    sortAndRender();
+  });
   $("exportBtn").addEventListener("click", exportToXlsx);
 
   document.querySelectorAll(".whBtn").forEach(btn=>{
@@ -466,6 +534,18 @@ document.addEventListener("DOMContentLoaded", ()=>{
 
   ["keyInput","bInput"].forEach(id=>{
     $(id).addEventListener("keydown",(e)=>{ if(e.key==="Enter") applySearch(); });
+  });
+
+  // 헤더 정렬 이벤트
+  document.querySelectorAll("th[data-sort]").forEach(th=>{
+    const key = th.dataset.sort;
+    if(!key) return; // 비고는 정렬 제외
+    th.addEventListener("click", ()=>{
+      // 같은 키면 dir 토글, 다른 키면 asc로 시작
+      if(sortState.key === key) sortState.dir = (sortState.dir === "asc") ? "desc" : "asc";
+      else { sortState.key = key; sortState.dir = "asc"; }
+      sortAndRender();
+    });
   });
 
   loadCsv();
