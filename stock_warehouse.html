@@ -153,16 +153,17 @@
         <div class="overflow-auto">
           <table class="ui-table" id="resultTable">
             <thead>
-              <tr>
-                <th style="min-width:90px;">로케이션</th>
-                <th style="min-width:90px;">상품</th>
-                <th style="min-width:80px;">박스</th>
-                <th style="min-width:320px;">상품명</th>
-                <th style="min-width:100px;">유통기한</th>
-                <th style="min-width:70px;">재고</th>
-                <th style="min-width:180px;">비고</th>
-              </tr>
-            </thead>
+  <tr>
+    <th style="min-width:90px;">로케이션</th>
+    <th style="min-width:90px;">상품</th>
+    <th style="min-width:80px;">박스</th>
+    <th style="min-width:320px;">상품명</th>
+    <th style="min-width:70px;">재고</th>
+    <th style="min-width:110px;">유통기한</th>
+    <th style="min-width:180px;">비고</th>
+  </tr>
+</thead>
+
             <tbody id="tbody">
               <tr><td colspan="7" style="padding:14px; color:#6b7280;">데이터 로딩 중…</td></tr>
             </tbody>
@@ -186,16 +187,17 @@ const API_BASE = window.location.origin;
 const CSV_URL = `${API_BASE}/api/_csv?url=${encodeURIComponent(CSV_URL_RAW)}`;
 
 
-// ✅ 열 매핑(네 CSV 구조에 맞게 조정 가능)
+// ✅ CSV 열 인덱스(0부터)
+// A=0, B=1, C=2 ...
 const COL = {
- 
-  LOC: 1,     // ✅ 로케이션은 B열
-  PROD: 2,    // 상품코드
-  BOX: 3,     // 박스번호
-  NAME: 4,    // 상품명
-  EXP: 6,     // ✅ 유통기한 (원래 재고 자리였던 곳)
-  QTY: 5      // ✅ 재고 (원래 유통기한 자리였던 곳)
+  LOC: 1,    // ✅ 로케이션 = B열
+  PROD: 2,   // 상품코드
+  BOX: 3,    // 박스번호
+  NAME: 4,   // 상품명
+  QTY: 5,    // ✅ 재고
+  EXP: 6     // ✅ 유통기한
 };
+
 
 
 let ALL_ROWS = [];
@@ -269,6 +271,7 @@ function splitKeyInput(raw){
 
 function renderRows(rows){
   setCount(rows.length);
+
   if(!rows.length){
     $("tbody").innerHTML = `<tr><td colspan="7" style="padding:14px; color:#6b7280;">결과 없음</td></tr>`;
     return;
@@ -278,12 +281,12 @@ function renderRows(rows){
   const show = rows.length > limit ? rows.slice(0, limit) : rows;
 
   $("tbody").innerHTML = show.map(r=>{
-    const loc  = asText(r[COL.LOC]) || "-";
-const prod = asText(r[COL.PROD]) || "-";
-const box  = asText(r[COL.BOX])  || "-";
-const name = asText(r[COL.NAME]) || "-";
-const exp  = asText(r[COL.EXP])  || "-";
-const qty  = normalizeQty(r[COL.QTY]) || "-";
+    const loc  = asText(r[COL.LOC])  || "-";
+    const prod = asText(r[COL.PROD]) || "-";
+    const box  = asText(r[COL.BOX])  || "-";
+    const name = asText(r[COL.NAME]) || "-";
+    const qty  = normalizeQty(r[COL.QTY]) || "-";
+    const exp  = asText(r[COL.EXP])  || "-";
 
     return `
       <tr>
@@ -291,8 +294,8 @@ const qty  = normalizeQty(r[COL.QTY]) || "-";
         <td style="text-align:center;">${prod}</td>
         <td style="text-align:center;">${box}</td>
         <td class="name-cell">${name}</td>
-        <td style="text-align:center;">${exp}</td>
         <td style="text-align:right;">${qty}</td>
+        <td style="text-align:center;">${exp}</td>
         <td class="remark" contenteditable="true"></td>
       </tr>
     `;
@@ -302,10 +305,15 @@ const qty  = normalizeQty(r[COL.QTY]) || "-";
   else setStatus(`결과 ${rows.length.toLocaleString()}건`, "ok");
 }
 
-function applySearch(){
-  const tokens = splitKeyInput($("keyInput").value);
-  const bKey = upper($("bInput").value);
 
+
+function applySearch(){
+  const tokens = splitKeyInput($("keyInput").value); // 상품코드&박스번호 한칸
+  const bKey = upper($("bInput").value);             // B열값 입력
+
+  // tokens 처리
+  // - 1개 입력: 숫자면 상품코드, 문자면 박스번호
+  // - 2개 입력: [상품코드, 박스번호] AND
   let prodKey = "", boxKey = "";
   if(tokens.length === 1){
     const t = upper(tokens[0]);
@@ -317,25 +325,31 @@ function applySearch(){
   }
 
   const filtered = ALL_ROWS.filter(r=>{
-    const rB = upper(r[COL.B_TAG]);
-    const rP = upper(r[COL.C_PROD]);
-    const rD = upper(r[COL.D_BOX]);
+    const rLoc = upper(r[COL.LOC]);   // ✅ B열(로케이션/인보이스 등)
+    const rP   = upper(r[COL.PROD]);  // 상품코드
+    const rB   = upper(r[COL.BOX]);   // 박스번호
 
-    // ✅ B열: 앞 2자리만 입력해도 전부 조회 => startsWith
-    if(bKey && !rB.startsWith(bKey)) return false;
+    // ✅ B열값 조회: 앞 2자리만 입력해도 전체 조회 -> startsWith
+    if(bKey && !rLoc.startsWith(bKey)) return false;
 
+    // ✅ 상품코드 정확 매칭
     if(prodKey && rP !== prodKey) return false;
-    if(boxKey  && rD !== boxKey)  return false;
+
+    // ✅ 박스번호: 완전일치가 아니라 "포함"으로(BO0101, EX01-101 같은 변형 대응)
+    if(boxKey && !rB.includes(boxKey)) return false;
+
     return true;
   });
 
   renderRows(filtered);
 }
 
+
 function filterByWarehouse(k){
   const key = upper(k);
-  renderRows(ALL_ROWS.filter(r => upper(r[COL.B_TAG]).includes(key)));
+  renderRows(ALL_ROWS.filter(r => upper(r[COL.LOC]).includes(key))); // ✅ B열 포함
 }
+
 
 function clearAll(){
   $("keyInput").value = "";
@@ -353,20 +367,22 @@ function exportToXlsx(){
   }
 
   const data = [];
-  data.push(["로케이션","상품","상품명","박스","유통기한","재고","비고"]);
+  data.push(["로케이션","상품","박스","상품명","재고","유통기한","비고"]);
+
 
   trs.forEach(tr=>{
     const tds = Array.from(tr.querySelectorAll("td"));
     if(tds.length !== 7) return;
     data.push([
-      tds[0].innerText.trim(),
-      tds[1].innerText.trim(),
-      tds[3].innerText.trim(),
-      tds[2].innerText.trim(),
-      tds[4].innerText.trim(),
-      tds[5].innerText.trim(),
-      tds[6].innerText.trim(),
-    ]);
+  tds[0].innerText.trim(), // 로케이션
+  tds[1].innerText.trim(), // 상품
+  tds[2].innerText.trim(), // 박스
+  tds[3].innerText.trim(), // 상품명
+  tds[4].innerText.trim(), // 재고
+  tds[5].innerText.trim(), // 유통기한
+  tds[6].innerText.trim(), // 비고
+]);
+
   });
 
   const wb = XLSX.utils.book_new();
