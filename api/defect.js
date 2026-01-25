@@ -1,4 +1,4 @@
-// /api/defect.js — FINAL (조회키 우선 + HEADER SAFE + WMS 0 FIX)
+// /api/defect.js — FINAL+ (과거 포함 기본 / future=1 옵션 / 날짜 파싱 강화)
 import { loadCsv } from "./_csv.js";
 
 const SAP_URL =
@@ -48,7 +48,7 @@ function normalizeId(v) {
   return digits.replace(/^0+/, "");
 }
 
-// ✅ 헤더명 후보 중 값 뽑기 (공백/BOM/제로폭까지 무시)
+// ✅ 헤더명 후보 중 값 뽑기 (공백/BOM/제로폭/nbsp까지 무시)
 function pickLoose(r, keys) {
   const clean = (s) =>
     String(s ?? "")
@@ -73,11 +73,16 @@ function makeKeyCandidates(inv, mat) {
   return [`${i}__${m}`, `${i}${m}`];
 }
 
+// ✅ 날짜 파싱 강화 (공백/nbsp/구분자 다양 대응)
 function convertToYMD(dateStr) {
   if (!dateStr) return 0;
-  const s = String(dateStr).trim();
-  // "2025. 12. 1" / "2025.12.01" / "2025-12-1" / "2025/12/01"
-  const m = s.match(/^(\d{4})\s*[.\-\/]\s*(\d{1,2})\s*[.\-\/]\s*(\d{1,2})$/);
+  let s = String(dateStr).trim();
+
+  // nbsp/제로폭 같은 특수 공백 제거 + 공백 정규화
+  s = s.replace(/[\u00A0\u200B]/g, " ").replace(/\s+/g, " ").trim();
+
+  // 2025. 12. 1 / 2025.12.01 / 2025-12-1 / 2025/12/01 등 대응
+  const m = s.match(/^(\d{4})\s*[.\-\/]\s*(\d{1,2})\s*[.\-\/]\s*(\d{1,2})/);
   if (!m) return 0;
 
   const y = m[1];
@@ -101,7 +106,9 @@ export default async function handler(req, res) {
     res.setHeader("Pragma", "no-cache");
     res.setHeader("Expires", "0");
 
-    const { key, debug } = req.query;
+    // ✅ future=1 이면 오늘 이후만(기존 동작), 기본은 과거 포함
+    const { key, debug, future } = req.query;
+    const onlyFuture = String(future || "") === "1";
 
     if (!key) {
       return res.status(400).json({
@@ -124,6 +131,8 @@ export default async function handler(req, res) {
       ? {
           queryRaw,
           queryKey,
+          onlyFuture,
+          today,
           sapCount: sapRows?.length || 0,
           wmsCount: wmsRows?.length || 0,
           sapKeys0: sapRows?.[0] ? Object.keys(sapRows[0]) : [],
@@ -140,7 +149,16 @@ export default async function handler(req, res) {
 
     for (const r of wmsRows || []) {
       const inv = pickLoose(r, ["인보이스", "INV", "INVNO", "INV NO", "INVOICE"]);
-      const mat = pickLoose(r, ["상품코드", "자재코드", "자재번호", "품목코드", "상품 코드", "자재 코드", "MATERIAL", "MAT"]);
+      const mat = pickLoose(r, [
+        "상품코드",
+        "자재코드",
+        "자재번호",
+        "품목코드",
+        "상품 코드",
+        "자재 코드",
+        "MATERIAL",
+        "MAT",
+      ]);
       const qty = asNum(pickLoose(r, ["수량", "QTY", "qty", "입고", "입고수량", "입고 수량"]), 0);
 
       const keyFullDirect = pickLoose(r, ["인보이스+자재코드", "인보이스+자재", "INV+MAT", "KEYFULL"]);
@@ -182,8 +200,10 @@ export default async function handler(req, res) {
       const dateStr = pickLoose(r, ["출고일"]) || r["출고일"];
       const ymd = convertToYMD(dateStr);
 
-      // 오늘 이전 제외 (연도 없는 값은 ymd=0 → 제외 안 함 / 기존 로직 유지)
-      if (ymd && ymd < today) continue;
+      // ✅ future=1 일 때만 오늘 이전 제외 (기본은 과거 포함)
+      if (onlyFuture) {
+        if (ymd && ymd < today) continue;
+      }
 
       const country = pickLoose(r, ["국가"]) || r["국가"];
       const material = pickLoose(r, ["자재코드", "자재번호", "상품코드"]) || r["자재코드"];
@@ -240,6 +260,7 @@ export default async function handler(req, res) {
       payload.meta = meta;
       payload.meta.wmsMapSize = wmsMap.size;
       payload.meta.sampleWmsMapKeys = Array.from(wmsMap.keys()).slice(0, 20);
+      payload.meta.sampleMatched = result.slice(0, 5);
     }
 
     return res.status(200).json(payload);
