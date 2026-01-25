@@ -5,14 +5,12 @@
   <title>창고별 재고조사 · 남경 검수시스템</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <script src="https://cdn.tailwindcss.com"></script>
-
-  <!-- ✅ 엑셀 출력용 -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 
   <style>
     body { background:#eef1f5; }
 
-    /* ✅ 화면용: “컴팩트” 테이블 (모바일 덜 불편) */
+    /* ✅ 화면용 컴팩트 테이블 */
     table.ui-table { border-collapse: separate; border-spacing: 0; width:100%; }
     table.ui-table th, table.ui-table td {
       border-bottom: 1px solid #e5e7eb;
@@ -34,24 +32,14 @@
     }
     table.ui-table tbody tr:hover { background:#f8fafc; }
 
-    /* 상품명은 줄바꿈 허용(모바일에서 특히) */
-    td.name-cell {
-      white-space: normal;
-      min-width: 260px;
-    }
-
-    /* 비고: 화면에서 입력 */
-    td.remark {
-      min-width: 180px;
-      white-space: normal;
-    }
+    td.name-cell { white-space: normal; min-width: 260px; }
+    td.remark { min-width: 180px; white-space: normal; }
     td.remark[contenteditable="true"]:focus {
       outline: 2px solid #93c5fd;
       outline-offset: -2px;
       background: #f8fafc;
     }
 
-    /* 모바일에선 더 컴팩트 */
     @media (max-width: 640px) {
       table.ui-table th, table.ui-table td { padding: 7px 8px; font-size: 11px; }
       td.name-cell { min-width: 220px; }
@@ -84,7 +72,6 @@
 <main class="pt-16 pb-10">
   <div class="max-w-6xl mx-auto px-4">
 
-    <!-- 상단 카드(예전 스타일 느낌 유지 + 컴팩트) -->
     <section class="mb-4">
       <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
         <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
@@ -115,7 +102,6 @@
       </div>
     </section>
 
-    <!-- 검색 카드 -->
     <section class="mb-4">
       <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
         <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
@@ -148,7 +134,6 @@
       </div>
     </section>
 
-    <!-- 창고 버튼 -->
     <section class="mb-4">
       <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
         <div class="flex flex-wrap gap-2">
@@ -159,13 +144,10 @@
           <button class="whBtn px-3 py-2 rounded-xl text-sm border border-slate-200 hover:bg-slate-50 transition" data-key="파손">파손</button>
           <button class="whBtn px-3 py-2 rounded-xl text-sm border border-slate-200 hover:bg-slate-50 transition" data-key="CBM">CBM초과</button>
         </div>
-        <div class="mt-2 text-[12px] text-slate-500">
-          버튼은 B열 <span class="font-semibold">포함(contains)</span> 기준
-        </div>
+        <div class="mt-2 text-[12px] text-slate-500">버튼은 B열 <span class="font-semibold">포함(contains)</span> 기준</div>
       </div>
     </section>
 
-    <!-- 테이블 -->
     <section>
       <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div class="overflow-auto">
@@ -182,13 +164,10 @@
               </tr>
             </thead>
             <tbody id="tbody">
-              <tr>
-                <td colspan="7" style="padding:14px; color:#6b7280;">데이터 로딩 중…</td>
-              </tr>
+              <tr><td colspan="7" style="padding:14px; color:#6b7280;">데이터 로딩 중…</td></tr>
             </tbody>
           </table>
         </div>
-
         <div class="px-4 py-3 border-t border-slate-100 text-[11px] text-slate-500">
           엑셀 출력은 스샷형 간격(컬럼폭/행높이/폰트/여백)으로 강제됩니다.
         </div>
@@ -199,36 +178,25 @@
 </main>
 
 <script>
-/* ===============================
-   CSV 로딩 (직접 or 프록시)
-================================ */
-
-// 원본 CSV
 const CSV_URL_RAW =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAWmUNAeyndXfdxHjR-1CakW_Tm3OzmMTng5RkB53umXwucqpxABqMMcB0y8H5cHNg7aoHYqFztz0F/pub?gid=162849112&single=true&output=csv";
 
-// ✅ 1) 직접 로딩(대부분 OK)
-// const CSV_URL = CSV_URL_RAW;
-
-// ✅ 2) 프록시 로딩(FAILED TO FETCH 뜨면 이걸로 바꿔)
-// /api/csv.js 추가 필요
+// ✅ 프록시로 가져오기 (404 방지 핵심)
 const API_BASE = window.location.origin;
 const CSV_URL = `${API_BASE}/api/csv?url=${encodeURIComponent(CSV_URL_RAW)}`;
 
-// ✅ 열 매핑(네 CSV에 맞춰 조정)
+// ✅ 열 매핑(네 CSV 구조에 맞게 조정 가능)
 const COL = {
-  A_LOC: 0,   // 로케이션
-  B_TAG: 1,   // B열 값(인보이스/BO0101/EX01-101 등)
-  C_PROD: 2,  // 상품코드
-  D_BOX:  3,  // 박스번호
-  E_NAME: 4,  // 상품명
-  F_EXP:  5,  // 유통기한
-  G_QTY:  6   // 재고
+  A_LOC: 0,
+  B_TAG: 1,
+  C_PROD: 2,
+  D_BOX:  3,
+  E_NAME: 4,
+  F_EXP:  5,
+  G_QTY:  6
 };
 
 let ALL_ROWS = [];
-let CURRENT_ROWS = [];
-
 const $ = (id) => document.getElementById(id);
 function setCsvStatus(msg){ $("csvStatus").textContent = "CSV: " + msg; }
 function setCount(n){ $("countText").textContent = n.toLocaleString() + "건"; }
@@ -237,7 +205,6 @@ function setStatus(msg, tone="base"){
   el.textContent = msg;
   el.className = "text-xs " + (tone==="ok"?"text-emerald-600":tone==="err"?"text-rose-600":"text-slate-500");
 }
-
 function asText(v){ return (v===null||v===undefined) ? "" : String(v).trim(); }
 function upper(v){ return asText(v).toUpperCase(); }
 function normalizeQty(v){ return asText(v).replace(/,/g,""); }
@@ -245,7 +212,6 @@ function normalizeQty(v){ return asText(v).replace(/,/g,""); }
 function parseCsv(text){
   const rows = [];
   let row = [], field = "", inQuotes = false;
-
   for (let i=0; i<text.length; i++){
     const ch = text[i];
     if (ch === '"'){
@@ -284,7 +250,6 @@ async function loadCsv(){
     ALL_ROWS = rows.slice(1);
     setCsvStatus("완료 (" + ALL_ROWS.length.toLocaleString() + "행)");
     setStatus("CSV 로딩 완료", "ok");
-
     renderRows(ALL_ROWS);
   }catch(err){
     console.error(err);
@@ -301,9 +266,7 @@ function splitKeyInput(raw){
 }
 
 function renderRows(rows){
-  CURRENT_ROWS = rows;
   setCount(rows.length);
-
   if(!rows.length){
     $("tbody").innerHTML = `<tr><td colspan="7" style="padding:14px; color:#6b7280;">결과 없음</td></tr>`;
     return;
@@ -312,14 +275,13 @@ function renderRows(rows){
   const limit = 8000;
   const show = rows.length > limit ? rows.slice(0, limit) : rows;
 
-  const html = show.map(r=>{
+  $("tbody").innerHTML = show.map(r=>{
     const loc  = asText(r[COL.A_LOC]) || asText(r[COL.B_TAG]) || "-";
     const prod = asText(r[COL.C_PROD]) || "-";
     const box  = asText(r[COL.D_BOX])  || "-";
     const name = asText(r[COL.E_NAME]) || "-";
     const exp  = asText(r[COL.F_EXP])  || "-";
     const qty  = normalizeQty(r[COL.G_QTY]) || "-";
-
     return `
       <tr>
         <td style="text-align:center;">${loc}</td>
@@ -332,8 +294,6 @@ function renderRows(rows){
       </tr>
     `;
   }).join("");
-
-  $("tbody").innerHTML = html;
 
   if(rows.length > limit) setStatus(`결과 ${rows.length.toLocaleString()}건 (표시는 ${limit.toLocaleString()}건까지)`, "base");
   else setStatus(`결과 ${rows.length.toLocaleString()}건`, "ok");
@@ -358,12 +318,11 @@ function applySearch(){
     const rP = upper(r[COL.C_PROD]);
     const rD = upper(r[COL.D_BOX]);
 
-    // ✅ B열 값 입력: 앞 2자리만 입력해도 전부 조회 => startsWith
+    // ✅ B열: 앞 2자리만 입력해도 전부 조회 => startsWith
     if(bKey && !rB.startsWith(bKey)) return false;
 
     if(prodKey && rP !== prodKey) return false;
     if(boxKey  && rD !== boxKey)  return false;
-
     return true;
   });
 
@@ -382,43 +341,34 @@ function clearAll(){
   setStatus("초기화 완료");
 }
 
-/* ===============================
-   엑셀 출력: 스샷형 간격 강제
-   - 여백 0.6
-   - 행높이 40
-   - 폰트 12
-   - 컬럼폭: 스샷처럼 (상품명/비고 넓게)
-================================ */
+/* ✅ 엑셀 출력: 스샷형 간격 고정 */
 function exportToXlsx(){
-  const table = $("resultTable");
-  const trs = Array.from(table.querySelectorAll("tbody tr"));
+  const trs = Array.from(document.querySelectorAll("#resultTable tbody tr"));
   if(!trs.length || (trs.length===1 && trs[0].innerText.includes("결과 없음"))){
     alert("내보낼 데이터가 없습니다.");
     return;
   }
 
   const data = [];
-  data.push(["로케이션","상품","상품명","박스","유통기한","재고","비고"]); // ✅ 스샷 헤더 순서
+  data.push(["로케이션","상품","상품명","박스","유통기한","재고","비고"]);
 
   trs.forEach(tr=>{
     const tds = Array.from(tr.querySelectorAll("td"));
     if(tds.length !== 7) return;
-
     data.push([
-      tds[0].innerText.trim(), // 로케이션
-      tds[1].innerText.trim(), // 상품(상품코드)
-      tds[3].innerText.trim(), // 상품명
-      tds[2].innerText.trim(), // 박스
-      tds[4].innerText.trim(), // 유통기한
-      tds[5].innerText.trim(), // 재고
-      tds[6].innerText.trim(), // 비고
+      tds[0].innerText.trim(),
+      tds[1].innerText.trim(),
+      tds[3].innerText.trim(),
+      tds[2].innerText.trim(),
+      tds[4].innerText.trim(),
+      tds[5].innerText.trim(),
+      tds[6].innerText.trim(),
     ]);
   });
 
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(data);
 
-  // ✅ 스샷 느낌 컬럼폭(상품명/비고 넓게)
   ws["!cols"] = [
     { wch: 12 }, // 로케이션
     { wch: 10 }, // 상품
@@ -429,10 +379,7 @@ function exportToXlsx(){
     { wch: 22 }  // 비고
   ];
 
-  // ✅ 행높이 40(요구)
   ws["!rows"] = data.map(()=>({ hpt: 40 }));
-
-  // ✅ 여백 0.6(인치)
   ws["!margins"] = { left:0.6, right:0.6, top:0.6, bottom:0.6, header:0.3, footer:0.3 };
   ws["!pageSetup"] = { fitToWidth: 1, fitToHeight: 0 };
 
@@ -450,23 +397,9 @@ function exportToXlsx(){
     border
   };
 
-  const center = {
-    font:{name:"맑은 고딕",sz:12},
-    alignment:{horizontal:"center",vertical:"center"},
-    border
-  };
-
-  const left = {
-    font:{name:"맑은 고딕",sz:12},
-    alignment:{horizontal:"left",vertical:"center",wrapText:true},
-    border
-  };
-
-  const right = {
-    font:{name:"맑은 고딕",sz:12},
-    alignment:{horizontal:"right",vertical:"center"},
-    border
-  };
+  const center = { font:{name:"맑은 고딕",sz:12}, alignment:{horizontal:"center",vertical:"center"}, border };
+  const left   = { font:{name:"맑은 고딕",sz:12}, alignment:{horizontal:"left",vertical:"center",wrapText:true}, border };
+  const right  = { font:{name:"맑은 고딕",sz:12}, alignment:{horizontal:"right",vertical:"center"}, border };
 
   const range = XLSX.utils.decode_range(ws["!ref"]);
   for(let R=range.s.r; R<=range.e.r; R++){
@@ -474,12 +407,10 @@ function exportToXlsx(){
       const addr = XLSX.utils.encode_cell({r:R,c:C});
       if(!ws[addr]) continue;
 
-      if(R===0){
-        ws[addr].s = headerStyle;
-      }else{
-        // 상품명(2), 비고(6)는 left, 재고(5)는 right, 나머지 center
-        if(C===2 || C===6) ws[addr].s = left;
-        else if(C===5) ws[addr].s = right;
+      if(R===0) ws[addr].s = headerStyle;
+      else {
+        if(C===2 || C===6) ws[addr].s = left;     // 상품명/비고
+        else if(C===5) ws[addr].s = right;        // 재고
         else ws[addr].s = center;
       }
     }
@@ -493,7 +424,6 @@ function exportToXlsx(){
   XLSX.writeFile(wb, `창고별재고_${y}${m}${d}.xlsx`);
 }
 
-/* 이벤트 */
 document.addEventListener("DOMContentLoaded", ()=>{
   $("reloadBtn").addEventListener("click", loadCsv);
   $("searchBtn").addEventListener("click", applySearch);
