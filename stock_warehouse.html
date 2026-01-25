@@ -188,14 +188,15 @@ const CSV_URL = `${API_BASE}/api/_csv?url=${encodeURIComponent(CSV_URL_RAW)}`;
 
 // ✅ 열 매핑(네 CSV 구조에 맞게 조정 가능)
 const COL = {
-  A_LOC: 0,
-  B_TAG: 1,
-  C_PROD: 2,
-  D_BOX:  3,
-  E_NAME: 4,
-  F_EXP:  5,
-  G_QTY:  6
+ 
+  LOC: 1,     // ✅ 로케이션은 B열
+  PROD: 2,    // 상품코드
+  BOX: 3,     // 박스번호
+  NAME: 4,    // 상품명
+  EXP: 6,     // ✅ 유통기한 (원래 재고 자리였던 곳)
+  QTY: 5      // ✅ 재고 (원래 유통기한 자리였던 곳)
 };
+
 
 let ALL_ROWS = [];
 const $ = (id) => document.getElementById(id);
@@ -277,12 +278,13 @@ function renderRows(rows){
   const show = rows.length > limit ? rows.slice(0, limit) : rows;
 
   $("tbody").innerHTML = show.map(r=>{
-    const loc  = asText(r[COL.A_LOC]) || asText(r[COL.B_TAG]) || "-";
-    const prod = asText(r[COL.C_PROD]) || "-";
-    const box  = asText(r[COL.D_BOX])  || "-";
-    const name = asText(r[COL.E_NAME]) || "-";
-    const exp  = asText(r[COL.F_EXP])  || "-";
-    const qty  = normalizeQty(r[COL.G_QTY]) || "-";
+    const loc  = asText(r[COL.LOC]) || "-";
+const prod = asText(r[COL.PROD]) || "-";
+const box  = asText(r[COL.BOX])  || "-";
+const name = asText(r[COL.NAME]) || "-";
+const exp  = asText(r[COL.EXP])  || "-";
+const qty  = normalizeQty(r[COL.QTY]) || "-";
+
     return `
       <tr>
         <td style="text-align:center;">${loc}</td>
