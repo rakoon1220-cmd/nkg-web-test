@@ -181,9 +181,10 @@
 const CSV_URL_RAW =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAWmUNAeyndXfdxHjR-1CakW_Tm3OzmMTng5RkB53umXwucqpxABqMMcB0y8H5cHNg7aoHYqFztz0F/pub?gid=162849112&single=true&output=csv";
 
-// ✅ 프록시로 가져오기 (404 방지 핵심)
+// ✅ 프록시로 가져오기 (_csv.js 사용)
 const API_BASE = window.location.origin;
-const CSV_URL = `${API_BASE}/api/csv?url=${encodeURIComponent(CSV_URL_RAW)}`;
+const CSV_URL = `${API_BASE}/api/_csv?url=${encodeURIComponent(CSV_URL_RAW)}`;
+
 
 // ✅ 열 매핑(네 CSV 구조에 맞게 조정 가능)
 const COL = {
