@@ -75,7 +75,7 @@
               <div class="text-xs text-slate-500">재고 조사</div>
               <h1 class="text-lg md:text-xl font-semibold text-slate-800">창고별 재고조회</h1>
               <div class="text-[12px] text-slate-500 mt-1">
-                (상품코드&박스번호) + (B열 값) 조회 / 앞 2자리 입력도 전체 조회
+                (상품코드&박스번호) + (로케이션) 조회 / 앞 2자리 입력도 전체 조회
               </div>
             </div>
 
@@ -114,7 +114,7 @@
             </div>
 
             <div class="md:col-span-4">
-              <label class="block text-xs text-slate-500 mb-1">B열 값 (인보이스/BO0101/EX01-101 등)</label>
+              <label class="block text-xs text-slate-500 mb-1"> (인보이스/BO0101/EX01-101 등)</label>
               <input id="bInput" type="text"
                 class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-sky-200"
                 placeholder="예: BO / EX / 123456" />
@@ -145,7 +145,7 @@
             <button class="whBtn px-3 py-2 rounded-xl text-sm border border-slate-200 hover:bg-slate-50 transition" data-key="파손">파손</button>
             <button class="whBtn px-3 py-2 rounded-xl text-sm border border-slate-200 hover:bg-slate-50 transition" data-key="CBM">CBM초과</button>
           </div>
-          <div class="mt-2 text-[12px] text-slate-500">버튼은 B열 <span class="font-semibold">포함(contains)</span> 기준</div>
+          <div class="mt-2 text-[12px] text-slate-500">버튼은  <span class="font-semibold">포함(contains)</span> 기준</div>
         </div>
       </section>
 
@@ -172,7 +172,7 @@
           </div>
 
           <div class="px-4 py-3 border-t border-slate-100 text-[11px] text-slate-500">
-            헤더를 클릭하면 정렬됩니다(오름/내림). 엑셀 출력은 스샷형 간격으로 저장됩니다.
+            헤더를 클릭하면 정렬됩니다(오름/내림). 엑셀 출력은 인쇄용(A4) 형식으로 저장됩니다.
           </div>
         </div>
       </section>
@@ -216,18 +216,6 @@ function asText(v){ return (v===null||v===undefined) ? "" : String(v).trim(); }
 function upper(v){ return asText(v).toUpperCase(); }
 function normalizeQty(v){ return asText(v).replace(/,/g,"").trim(); }
 
-function rowKey(r){
-  // 동일 상품/박스/유통기한이라도 분리되게 키 구성
-  // (B열+상품+박스+유통기한+재고) 조합
-  return [
-    asText(r[COL.LOC]),
-    asText(r[COL.PROD]),
-    asText(r[COL.BOX]),
-    asText(r[COL.EXP]),
-    normalizeQty(r[COL.QTY])
-  ].join("|");
-}
-
 function parseCsv(text){
   const rows = [];
   let row = [], field = "", inQuotes = false;
@@ -270,7 +258,6 @@ async function loadCsv(){
     setCsvStatus("완료 (" + ALL_ROWS.length.toLocaleString() + "행)");
     setStatus("CSV 로딩 완료", "ok");
 
-    // 기본 정렬(로케이션 asc)
     CURRENT_ROWS = ALL_ROWS.slice();
     sortState = { key: "LOC", dir: "asc" };
     sortAndRender();
@@ -289,7 +276,6 @@ function splitKeyInput(raw){
 }
 
 function captureRemarks(){
-  // 현재 화면의 비고를 Map에 저장 (정렬/필터로 재렌더해도 유지)
   const trs = Array.from(document.querySelectorAll("#tbody tr"));
   trs.forEach(tr=>{
     const tds = tr.querySelectorAll("td");
@@ -339,7 +325,6 @@ function renderRows(rows){
     `;
   }).join("");
 
-  // remark 입력시 즉시 Map에 반영
   document.querySelectorAll('td.remark[contenteditable="true"]').forEach(td=>{
     td.addEventListener("input", (e)=>{
       const k = e.target.getAttribute("data-rowkey");
@@ -435,16 +420,41 @@ function clearAll(){
 }
 
 function exportToXlsx(){
-  // 화면에 표시된 기준으로 내보내기
   const trs = Array.from(document.querySelectorAll("#resultTable tbody tr"));
   if(!trs.length || (trs.length===1 && trs[0].innerText.includes("결과 없음"))){
     alert("내보낼 데이터가 없습니다.");
     return;
   }
 
+  // ✅ 한국 기준 오늘 날짜
+  const nowKST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+  const y = nowKST.getFullYear();
+  const m = String(nowKST.getMonth()+1).padStart(2,"0");
+  const d = String(nowKST.getDate()).padStart(2,"0");
+  const dateText = `${y}-${m}-${d}`;
+
   const data = [];
+
+  // =========================================================
+  // ✅ 상단 3행 레이아웃
+  // 1행: A~D(병합) = "재고조사 YYYY-MM-DD"
+  //     E~F(병합) = "담당자"
+  //     G = "확인"
+  // 2~3행: 담당자/확인 서명칸
+  // 4행: 테이블 헤더
+  // =========================================================
+
+  // Row1 (A1~G1)
+  data.push([`재고조사 ${dateText}`, "", "", "", "담당자", "", "확인"]);
+  // Row2 (A2~G2)
+  data.push(["", "", "", "", "", "", ""]);
+  // Row3 (A3~G3)
+  data.push(["", "", "", "", "", "", ""]);
+
+  // Row4: 테이블 헤더
   data.push(["로케이션","상품","박스","상품명","재고","유통기한","비고"]);
 
+  // 데이터 (Row5~)
   trs.forEach(tr=>{
     const tds = Array.from(tr.querySelectorAll("td"));
     if(tds.length !== 7) return;
@@ -462,7 +472,32 @@ function exportToXlsx(){
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(data);
 
-  // 컬럼폭 (상품명/비고 넓게)
+  // ===== ✅ 병합(최종 요구사항) =====
+  ws["!merges"] = [
+    { s:{r:0,c:0}, e:{r:2,c:3} }, // A1:D3
+    { s:{r:0,c:4}, e:{r:0,c:5} }, // E1:F1 (담당자)
+    { s:{r:1,c:4}, e:{r:2,c:5} }, // ✅ E2:F3 (담당자 서명칸)
+    { s:{r:1,c:6}, e:{r:2,c:6} }, // G2:G3 (확인 서명칸)
+  ];
+
+  // ===== ✅ 인쇄용 A4 (가로 + 너비 1페이지) =====
+  ws["!pageSetup"] = {
+    paperSize: 9,          // A4
+    orientation: "landscape",
+    fitToWidth: 1,
+    fitToHeight: 0,
+    scale: 100
+  };
+  ws["!margins"] = {
+    left: 0.3, right: 0.3,
+    top: 0.35, bottom: 0.35,
+    header: 0.2, footer: 0.2
+  };
+
+  // ✅ 테이블 헤더가 4행이므로 반복행 = 4:4
+  ws["!printTitleRows"] = "4:4";
+
+  // ===== 컬럼폭 =====
   ws["!cols"] = [
     { wch: 12 }, // 로케이션
     { wch: 10 }, // 상품
@@ -473,15 +508,38 @@ function exportToXlsx(){
     { wch: 22 }  // 비고
   ];
 
-  ws["!rows"] = data.map(()=>({ hpt: 40 }));
-  ws["!margins"] = { left:0.6, right:0.6, top:0.6, bottom:0.6, header:0.3, footer:0.3 };
-  ws["!pageSetup"] = { fitToWidth: 1, fitToHeight: 0 };
+  // ===== 행 높이(상단/서명칸 크게) =====
+  ws["!rows"] = data.map((_, idx) => {
+    if (idx === 0) return { hpt: 22 }; // 1행
+    if (idx === 1) return { hpt: 26 }; // 2행
+    if (idx === 2) return { hpt: 34 }; // 3행
+    if (idx === 3) return { hpt: 22 }; // 헤더
+    return { hpt: 18 };                // 데이터
+  });
 
+  // ===== 스타일 =====
   const border = {
     top:{style:"thin",color:{rgb:"000000"}},
     bottom:{style:"thin",color:{rgb:"000000"}},
     left:{style:"thin",color:{rgb:"000000"}},
     right:{style:"thin",color:{rgb:"000000"}},
+  };
+
+  const titleStyle = {
+    font:{name:"맑은 고딕",sz:16,bold:true},
+    alignment:{horizontal:"center",vertical:"center"},
+    border
+  };
+
+  const signHeadStyle = {
+    font:{name:"맑은 고딕",sz:11,bold:true},
+    alignment:{horizontal:"center",vertical:"center"},
+    border
+  };
+
+  const signBoxStyle = {
+    alignment:{horizontal:"center",vertical:"center"},
+    border
   };
 
   const headerStyle = {
@@ -495,15 +553,52 @@ function exportToXlsx(){
   const left   = { font:{name:"맑은 고딕",sz:12}, alignment:{horizontal:"left",vertical:"center",wrapText:true}, border };
   const right  = { font:{name:"맑은 고딕",sz:12}, alignment:{horizontal:"right",vertical:"center"}, border };
 
+  // ===== 스타일 적용 =====
   const range = XLSX.utils.decode_range(ws["!ref"]);
-  for(let R=range.s.r; R<=range.e.r; R++){
-    for(let C=range.s.c; C<=range.e.c; C++){
+
+  for(let R=0; R<=range.e.r; R++){
+    for(let C=0; C<=range.e.c; C++){
       const addr = XLSX.utils.encode_cell({r:R,c:C});
       if(!ws[addr]) continue;
 
-      if(R===0) ws[addr].s = headerStyle;
-      else {
-        // 상품명(3), 비고(6) left / 재고(4) right / 나머지 center
+      // A1:D3 영역(0~2행, 0~3열)
+      if(R <= 2 && C <= 3){
+        ws[addr].s = titleStyle;
+        continue;
+      }
+
+      // E1:F1 담당자 타이틀
+      if(R === 0 && (C === 4 || C === 5)){
+        ws[addr].s = signHeadStyle;
+        continue;
+      }
+
+      // G1 확인 타이틀
+      if(R === 0 && C === 6){
+        ws[addr].s = signHeadStyle;
+        continue;
+      }
+
+      // ✅ E2:F3 담당자 서명칸 (세로 2줄)
+      if((R === 1 || R === 2) && (C === 4 || C === 5)){
+        ws[addr].s = signBoxStyle;
+        continue;
+      }
+
+      // G2:G3 확인 서명칸
+      if((R === 1 || R === 2) && C === 6){
+        ws[addr].s = signBoxStyle;
+        continue;
+      }
+
+      // 테이블 헤더(4행 = idx 3)
+      if(R === 3){
+        ws[addr].s = headerStyle;
+        continue;
+      }
+
+      // 데이터(5행부터)
+      if(R > 3){
         if(C===3 || C===6) ws[addr].s = left;
         else if(C===4) ws[addr].s = right;
         else ws[addr].s = center;
@@ -512,12 +607,12 @@ function exportToXlsx(){
   }
 
   XLSX.utils.book_append_sheet(wb, ws, "재고조회");
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth()+1).padStart(2,"0");
-  const d = String(now.getDate()).padStart(2,"0");
   XLSX.writeFile(wb, `창고별재고_${y}${m}${d}.xlsx`);
 }
+
+
+
+
 
 document.addEventListener("DOMContentLoaded", ()=>{
   $("searchBtn").addEventListener("click", applySearch);
@@ -536,12 +631,10 @@ document.addEventListener("DOMContentLoaded", ()=>{
     $(id).addEventListener("keydown",(e)=>{ if(e.key==="Enter") applySearch(); });
   });
 
-  // 헤더 정렬 이벤트
   document.querySelectorAll("th[data-sort]").forEach(th=>{
     const key = th.dataset.sort;
-    if(!key) return; // 비고는 정렬 제외
+    if(!key) return;
     th.addEventListener("click", ()=>{
-      // 같은 키면 dir 토글, 다른 키면 asc로 시작
       if(sortState.key === key) sortState.dir = (sortState.dir === "asc") ? "desc" : "asc";
       else { sortState.key = key; sortState.dir = "asc"; }
       sortAndRender();
