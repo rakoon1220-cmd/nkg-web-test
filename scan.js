@@ -1,6 +1,6 @@
 /* ============================================================
    출고검수 스캔 - 최종 안정판
-   (색상규칙 강화 + 상태 단순화 + 중복 + 미등록 + 바코드미등록 + 사운드)
+   + 미등록 바코드: 체크박스 확인 모달(잠금)
 ============================================================ */
 
 const IS_FILE = location.protocol === "file:";
@@ -40,6 +40,12 @@ const noticeModal = document.getElementById("noticeModal");
 const noticeText = document.getElementById("noticeText");
 const noticeCloseBtn = document.getElementById("noticeCloseBtn");
 
+/* ===== ✅ 미등록 모달 ===== */
+const unregModal = document.getElementById("unregModal");
+const unregCode = document.getElementById("unregCode");
+const unregCheck = document.getElementById("unregCheck");
+const unregConfirmBtn = document.getElementById("unregConfirmBtn");
+
 /* ===== 사운드 ===== */
 let soundOk, soundDup, soundError, soundModal;
 if (!IS_FILE) {
@@ -67,6 +73,68 @@ let lastScannedBarcode = null;
 // 바코드 테이블(미등록 바코드 상세 표시용)
 let barcodeIndexByCode = {};
 
+/* =========================
+   ✅ 미등록 바코드 모달(스캔 잠금)
+========================= */
+let scanLocked = false;
+
+function setScanLocked(lock) {
+  scanLocked = lock;
+  if (!barcodeInput) return;
+
+  barcodeInput.disabled = lock;
+  if (lock) barcodeInput.blur();
+  else setTimeout(() => barcodeInput.focus(), 50);
+}
+
+function openUnregModal(code, meta) {
+  if (!unregModal || !unregCode || !unregCheck || !unregConfirmBtn) return;
+
+  // 모달 사운드(원하면)
+  playSound(soundModal);
+
+  // 표시 텍스트(바코드 + 메타)
+  let text = (code || "-").trim();
+  if (meta) {
+    if (meta.box) text += ` / 박스:${meta.box}`;
+    if (meta.name) text += ` / ${meta.name}`;
+  } else {
+    text += ` / (바코드표 없음)`;
+  }
+  unregCode.textContent = text;
+
+  // 초기화
+  unregCheck.checked = false;
+  unregConfirmBtn.disabled = true;
+  unregConfirmBtn.className =
+    "mt-6 w-full py-3 text-lg rounded-xl font-extrabold bg-slate-300 text-slate-600 cursor-not-allowed disabled:opacity-100";
+
+  // 열기 + 잠금
+  unregModal.classList.remove("hidden");
+  setScanLocked(true);
+
+  // 체크해야 버튼 활성화
+  unregCheck.onchange = () => {
+    if (unregCheck.checked) {
+      unregConfirmBtn.disabled = false;
+      unregConfirmBtn.className =
+        "mt-6 w-full py-3 text-lg rounded-xl font-extrabold bg-sky-600 hover:bg-sky-700 text-white";
+    } else {
+      unregConfirmBtn.disabled = true;
+      unregConfirmBtn.className =
+        "mt-6 w-full py-3 text-lg rounded-xl font-extrabold bg-slate-300 text-slate-600 cursor-not-allowed disabled:opacity-100";
+    }
+  };
+
+  // 확인 버튼
+  unregConfirmBtn.onclick = () => {
+    if (unregConfirmBtn.disabled) return;
+    unregModal.classList.add("hidden");
+    setScanLocked(false);
+    barcodeInput.value = "";
+  };
+}
+
 /* ------------------------------------------------------------
    바코드 전체 표 로드
 ------------------------------------------------------------ */
@@ -79,7 +147,6 @@ async function loadBarcodeTable() {
     if (!json.ok) return;
 
     barcodeIndexByCode = {};
-
     json.list.forEach(r => {
       if (!r.barcode) return;
       barcodeIndexByCode[r.barcode] = {
@@ -127,7 +194,7 @@ async function loadInvoice() {
 
     if (row["특이사항"]?.trim()) {
       currentNotice = row["특이사항"];
-      soundModal && playSound(soundModal);
+      playSound(soundModal);
       noticeText.textContent = currentNotice;
       noticeModal.classList.remove("hidden");
     }
@@ -162,70 +229,40 @@ invInput.addEventListener("keydown", e => {
 });
 
 /* ------------------------------------------------------------
-   compare 표시 규칙 함수 (최종)
+   compare 표시 규칙 함수
 ------------------------------------------------------------ */
 function renderCompare(item) {
   const sap = Number(item.sap);
-  const wms = Number(item.wms);
   const compare = Number(item.compare);
 
-  // SAP = 0 → compare 칸 공백
-  if (sap === 0) {
-    return `<span></span>`;
-  }
-
-  // compare = 0 → 입고완료 (초록)
-  if (compare === 0) {
-    return `<span class="text-green-600 font-semibold">입고완료</span>`;
-  }
-
-  // compare = SAP → 미입고 (파랑)
-  if (compare === sap) {
-    return `<span class="text-blue-600 font-semibold">미입고</span>`;
-  }
-
-  // compare < 0 → 초과입고 (음수)
-  if (compare < 0) {
-    return `<span class="text-blue-600 font-semibold">초과입고</span>`;
-  }
-
-  // 0 < compare < SAP → 부분미입고 = 빨강
+  if (sap === 0) return `<span></span>`;
+  if (compare === 0) return `<span class="text-green-600 font-semibold">입고완료</span>`;
+  if (compare === sap) return `<span class="text-blue-600 font-semibold">미입고</span>`;
+  if (compare < 0) return `<span class="text-blue-600 font-semibold">초과입고</span>`;
   if (compare > 0 && compare < sap) {
     return `<span class="text-red-600 font-semibold">${compare} (부분미입고)</span>`;
   }
-
   return `<span>${compare}</span>`;
 }
 
 /* ------------------------------------------------------------
-   출고 목록 렌더링 (최종 안정판)
+   출고 목록 렌더링
 ------------------------------------------------------------ */
 function renderOutboundTable() {
   scanTableBody.innerHTML = "";
 
   outboundItems.forEach(item => {
     const tr = document.createElement("tr");
-
     let cls = "";
 
-    // SAP = 0 → 연빨강
     if (Number(item.sap) === 0) cls += " bg-red-100 ";
-
-    // compare < 0 → 연파랑
     if (Number(item.compare) < 0) cls += " bg-blue-50 ";
-
-    // 스캔 완료 → 연초록
     if (item.status === "검수완료") cls += " bg-green-200 text-green-900 font-semibold ";
-
-    // 중복 스캔 → 연노랑 (최우선)
     if (item.dup) cls += " bg-yellow-100 ";
-
-    // 마지막 스캔 강조
     if (item.barcode === lastScannedBarcode) cls += " ring-2 ring-amber-400 ";
 
     tr.className = cls.trim();
 
-    // 바코드 미등록 표시
     const barcodeDisplay = item.barcode
       ? item.barcode
       : `<span class="text-red-600 font-semibold">바코드미등록</span>`;
@@ -246,7 +283,6 @@ function renderOutboundTable() {
       </td>
 
       <td class="px-3 py-2 whitespace-nowrap">${workDisplay}</td>
-
       <td class="px-3 py-2 whitespace-nowrap">${barcodeDisplay}</td>
       <td class="px-3 py-2 whitespace-nowrap">${item.status}</td>
     `;
@@ -262,6 +298,7 @@ function renderOutboundTable() {
 ------------------------------------------------------------ */
 barcodeInput.addEventListener("keydown", e => {
   if (e.key === "Enter") {
+    if (scanLocked) return; // ✅ 모달 확인 전 스캔 금지
     const code = barcodeInput.value.trim();
     barcodeInput.value = "";
     processScan(code);
@@ -285,11 +322,8 @@ function processScan(code) {
     const meta = barcodeIndexByCode[code];
     let detail = `[미등록] ${code}`;
 
-    if (meta) {
-      detail += ` / 박스:${meta.box} / ${meta.name}`;
-    } else {
-      detail += ` / 바코드표에도 없음`;
-    }
+    if (meta) detail += ` / 박스:${meta.box} / ${meta.name}`;
+    else detail += ` / 바코드표에도 없음`;
 
     recentScanStatus.textContent = "미등록";
     recentScanStatus.className = "text-lg font-bold text-red-600";
@@ -297,6 +331,9 @@ function processScan(code) {
 
     scanHistory.push({ code, type: "error", meta });
     playSound(soundError);
+
+    // ✅ 모달 띄우고 잠금
+    openUnregModal(code, meta);
 
     renderScanList();
     updateProgress();
@@ -307,7 +344,6 @@ function processScan(code) {
   lastScannedBarcode = code;
 
   if (existed) {
-    /* ▣ 중복 스캔 */
     dupCountValue++;
     item.dup = true;
 
@@ -318,7 +354,6 @@ function processScan(code) {
     scanHistory.push({ code, type: "dup", item });
     playSound(soundDup);
   } else {
-    /* ▣ 정상 → 검수완료 */
     item.status = "검수완료";
     item.dup = false;
 
@@ -352,12 +387,10 @@ function renderScanList() {
     if (entry.type === "ok") {
       div.className = "text-green-700";
       div.textContent = `✅ [완료] ${entry.code} (${entry.item.box}) - ${entry.item.name}`;
-    }
-    else if (entry.type === "dup") {
+    } else if (entry.type === "dup") {
       div.className = "text-amber-700";
       div.textContent = `🔁 [중복] ${entry.code} (${entry.item.box}) - ${entry.item.name}`;
-    }
-    else {
+    } else {
       div.className = "text-red-600";
       if (entry.meta)
         div.textContent = `⛔ [미등록] ${entry.code} / 박스:${entry.meta.box} / ${entry.meta.name}`;
@@ -420,6 +453,10 @@ function resetUI() {
 
   recentScanStatus.textContent = "-";
   recentScanDetail.textContent = "";
+
+  // ✅ 혹시 모달이 열려있던 상태면 닫고 잠금 해제
+  if (unregModal) unregModal.classList.add("hidden");
+  setScanLocked(false);
 }
 
 /* ------------------------------------------------------------
@@ -431,9 +468,10 @@ noticeCloseBtn.addEventListener("click", () => {
   noticeModal.classList.add("hidden");
   barcodeInput.focus();
 });
+
 btnNoticeOpen.addEventListener("click", () => {
   if (!currentNotice) return alert("특이사항이 없습니다.");
-  soundModal && soundModal.play();
+  playSound(soundModal);
   noticeText.textContent = currentNotice;
   noticeModal.classList.remove("hidden");
 });
