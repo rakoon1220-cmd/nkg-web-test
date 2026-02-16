@@ -2,11 +2,11 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>출고/전체보기 · 남경 검수시스템</title>
+  <title>출고</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- ✅ 캡처 라이브러리 -->
+  <!--  캡처 라이브러리 -->
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
   <style>
@@ -19,16 +19,10 @@
     .animate-fadeIn { animation: fadeIn 0.25s ease-out; }
 
     /* ===== 최근 스캔 3줄 고정 ===== */
-    #scanList {
-      max-height: 4.5rem;
-      overflow: hidden;
-    }
+    #scanList { max-height: 4.5rem; overflow: hidden; }
 
     /* ===== 자재번호 열 숨김 (2번째 컬럼 = 자재번호) ===== */
-    th:nth-child(2),
-    td:nth-child(2) {
-      display: none;
-    }
+    th:nth-child(2), td:nth-child(2) { display: none; }
   </style>
 </head>
 
@@ -59,7 +53,7 @@
           autocomplete="off"
           inputmode="numeric" />
 
-        <!-- ✅ 조회 | 특이사항 | 저장 -->
+        <!--  조회 | 특이사항 | 저장 -->
         <div class="grid grid-cols-3 divide-x divide-white rounded-2xl overflow-hidden shadow-sm">
           <button id="btnLoadInv"
             class="py-3 text-base font-extrabold bg-sky-600 hover:bg-sky-700 text-white">
@@ -76,7 +70,7 @@
         </div>
       </div>
 
-      <!-- ✅ 요약 (캡처 포함) -->
+      <!--  요약 -->
       <div class="bg-slate-50 border rounded-xl p-3 space-y-2 text-sm">
         <div class="grid grid-cols-2 gap-2">
           <div><div class="text-[11px] text-slate-500">인보이스</div><div id="inv_no">-</div></div>
@@ -112,7 +106,7 @@
     <!-- ================= 하단 ================= -->
     <section class="flex flex-col gap-3 flex-1">
 
-      <!-- ✅ 최근 스캔 -->
+      <!--  최근 스캔 -->
       <div class="bg-white rounded-xl border p-3">
         <div class="text-xs text-slate-500 mb-2">스캔된 목록 (최근 3건)</div>
         <div id="scanList" class="text-sm leading-6 text-slate-700">
@@ -120,7 +114,7 @@
         </div>
       </div>
 
-      <!-- ✅ 캡처할 영역 -->
+      <!--  캡처할 영역 -->
       <div id="captureArea" class="space-y-3 flex-1">
         <div class="bg-white rounded-xl border flex flex-col flex-1">
           <div class="px-3 py-2 border-b text-xs text-slate-500 flex justify-between">
@@ -152,7 +146,7 @@
     </section>
   </main>
 
-  <!-- ===== 특이사항 모달 (캡처 제외) ===== -->
+  <!-- ===== 특이사항 모달 ===== -->
   <div id="noticeModal"
        class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-50">
     <div class="bg-white rounded-2xl p-6 w-[90%] max-w-md animate-fadeIn">
@@ -165,22 +159,479 @@
     </div>
   </div>
 
-  <!-- scan.js -->
-  <script src="scan.js"></script>
+  <!-- =====  미등록 바코드 확인 모달 ===== -->
+  <div id="unregModal"
+       class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-[9999]">
+    <div class="bg-white rounded-2xl p-6 w-[92%] max-w-md animate-fadeIn">
 
-  <!-- ✅ 저장(캡처) 기능 -->
+      <h2 class="text-lg font-bold text-red-600 mb-4 text-center">
+         미등록 바코드
+      </h2>
+
+      <div class="bg-slate-50 border rounded-xl p-4 text-sm text-center space-y-2">
+        <div class="text-slate-500 text-xs">스캔된 바코드</div>
+        <div id="unregCode" class="text-base font-extrabold text-slate-900 break-all">-</div>
+        <div class="text-slate-600 text-xs leading-relaxed">
+          출고 목록에 등록되지 않은 바코드입니다.<br>
+          내용을 확인 후 체크해야 계속 진행할 수 있습니다.
+        </div>
+      </div>
+
+      <label class="mt-4 flex items-center gap-2 text-sm font-semibold">
+        <input id="unregCheck" type="checkbox" class="w-4 h-4 accent-sky-600">
+        미등록 내용을 확인했습니다.
+      </label>
+
+      <button id="unregConfirmBtn" disabled
+        class="mt-5 w-full py-3 rounded-xl font-bold
+               bg-slate-300 text-slate-600 cursor-not-allowed">
+        확인 후 계속
+      </button>
+    </div>
+  </div>
+
+  <!-- =========================
+        scan.js (이 페이지 전용, 인라인 전체)
+  ========================= -->
+  <script>
+  /* ============================================================
+     출고/전체보기 - 스캔 + 미등록 모달 잠금 포함
+  ============================================================ */
+
+  const IS_FILE = location.protocol === "file:";
+  const API_BASE = window.location.origin;
+
+  /* ===== DOM ===== */
+  const invInput = document.getElementById("invInput");
+  const btnLoadInv = document.getElementById("btnLoadInv");
+  const btnNoticeOpen = document.getElementById("btnNoticeOpen");
+
+  const inv_no = document.getElementById("inv_no");
+  const country = document.getElementById("country");
+  const containerEl = document.getElementById("container");
+  const cbm = document.getElementById("cbm");
+  const qty = document.getElementById("qty");
+  const load_time = document.getElementById("load_time");
+  const load_loc = document.getElementById("load_loc");
+
+  const barcodeInput = document.getElementById("barcodeInput");
+  const scanList = document.getElementById("scanList");
+  const scanTableBody = document.getElementById("scanTableBody");
+
+  // (숨김 DOM)
+  const recentScanStatus = document.getElementById("recentScanStatus");
+  const recentScanDetail = document.getElementById("recentScanDetail");
+  const progress_now = document.getElementById("progress_now");
+  const progress_total = document.getElementById("progress_total");
+  const progress_percent = document.getElementById("progress_percent");
+  const progress_bar = document.getElementById("progress_bar");
+  const error_count = document.getElementById("error_count");
+  const dup_count = document.getElementById("dup_count");
+
+  /* ===== 모달 ===== */
+  const noticeModal = document.getElementById("noticeModal");
+  const noticeText = document.getElementById("noticeText");
+  const noticeCloseBtn = document.getElementById("noticeCloseBtn");
+
+  /* ===== 미등록 모달 ===== */
+  const unregModal = document.getElementById("unregModal");
+  const unregCode = document.getElementById("unregCode");
+  const unregCheck = document.getElementById("unregCheck");
+  const unregConfirmBtn = document.getElementById("unregConfirmBtn");
+
+  /* ===== 사운드(선택) ===== */
+  let soundOk, soundDup, soundError, soundModal;
+  if (!IS_FILE) {
+    soundOk = new Audio("/sound/ok.mp3");
+    soundDup = new Audio("/sound/dup.mp3");
+    soundError = new Audio("/sound/error.mp3");
+    soundModal = new Audio("/sound/modal.mp3");
+  }
+  function playSound(a) {
+    if (!a) return;
+    a.currentTime = 0;
+    a.play().catch(() => {});
+  }
+
+  /* ===== 상태 ===== */
+  let currentNotice = "";
+  let outboundItems = [];
+  let scanHistory = [];
+  let scannedCodesSet = new Set();
+  let dupCountValue = 0;
+  let errorCountValue = 0;
+  let lastScannedBarcode = null;
+
+  // 바코드 표(미등록 상세)
+  let barcodeIndexByCode = {};
+
+  /* ===== 스캔 잠금 ===== */
+  let scanLocked = false;
+
+  function setScanLocked(lock) {
+    scanLocked = lock;
+    barcodeInput.disabled = lock;
+    if (lock) barcodeInput.blur();
+    else setTimeout(() => barcodeInput.focus(), 50);
+  }
+
+  function openUnregModal(code, meta) {
+    playSound(soundModal);
+
+    let text = code || "-";
+    if (meta) {
+      if (meta.box) text += ` / 박스:${meta.box}`;
+      if (meta.name) text += ` / ${meta.name}`;
+    } else {
+      text += " / (바코드표 없음)";
+    }
+    unregCode.textContent = text;
+
+    unregCheck.checked = false;
+    unregConfirmBtn.disabled = true;
+    unregConfirmBtn.className =
+      "mt-5 w-full py-3 rounded-xl font-bold bg-slate-300 text-slate-600 cursor-not-allowed";
+
+    unregModal.classList.remove("hidden");
+    setScanLocked(true);
+
+    unregCheck.onchange = () => {
+      if (unregCheck.checked) {
+        unregConfirmBtn.disabled = false;
+        unregConfirmBtn.className =
+          "mt-5 w-full py-3 rounded-xl font-bold bg-sky-600 hover:bg-sky-700 text-white";
+      } else {
+        unregConfirmBtn.disabled = true;
+        unregConfirmBtn.className =
+          "mt-5 w-full py-3 rounded-xl font-bold bg-slate-300 text-slate-600 cursor-not-allowed";
+      }
+    };
+
+    unregConfirmBtn.onclick = () => {
+      if (unregConfirmBtn.disabled) return;
+      unregModal.classList.add("hidden");
+      setScanLocked(false);
+      barcodeInput.value = "";
+    };
+  }
+
+  /* ------------------------------------------------------------
+     바코드 전체 표 로드
+  ------------------------------------------------------------ */
+  async function loadBarcodeTable() {
+    if (IS_FILE) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/barcode_table`);
+      const json = await res.json();
+      if (!json.ok) return;
+
+      barcodeIndexByCode = {};
+      json.list.forEach(r => {
+        if (!r.barcode) return;
+        barcodeIndexByCode[r.barcode] = { mat: r.mat, box: r.box, name: r.name };
+      });
+    } catch (err) {
+      console.error("BARCODE LOAD ERROR:", err);
+    }
+  }
+
+  /* ------------------------------------------------------------
+     인보이스 로드 + 목록
+  ------------------------------------------------------------ */
+  async function loadInvoice() {
+    const inv = invInput.value.trim();
+    if (!inv) return alert("인보이스를 입력하세요.");
+
+    resetUI();
+
+    try {
+      const resDoc = await fetch(`${API_BASE}/api/sap_doc?inv=${encodeURIComponent(inv)}`);
+      const jsonDoc = await resDoc.json();
+      if (!jsonDoc.ok) return alert(jsonDoc.message || "인보이스 조회 실패");
+
+      const row = jsonDoc.data;
+
+      inv_no.textContent = row["인보이스"] || "-";
+      country.textContent = row["국가"] || "-";
+      containerEl.textContent = row["컨테이너"] || "-";
+      cbm.textContent = row["CBM"] || "-";
+      qty.textContent = row["출고"] || "-";
+      load_time.textContent = row["상차시간"] || "-";
+      load_loc.textContent = row["상차위치"] || "-";
+
+      if (row["특이사항"]?.trim()) {
+        currentNotice = row["특이사항"];
+        noticeText.textContent = currentNotice;
+        noticeModal.classList.remove("hidden");
+        playSound(soundModal);
+      }
+
+      const resItems = await fetch(`${API_BASE}/api/outbound_items?inv=${encodeURIComponent(inv)}`);
+      const jsonItems = await resItems.json();
+      if (!jsonItems.ok) return alert(jsonItems.message || "출고 목록 불러오기 실패");
+
+      outboundItems = jsonItems.items.map(it => ({ ...it, status: "검수대기", dup: false }));
+
+      renderOutboundTable();
+      updateProgress();
+      barcodeInput.focus();
+    } catch (err) {
+      console.error(err);
+      alert("서버 오류 또는 네트워크 오류");
+    }
+  }
+
+  btnLoadInv.addEventListener("click", loadInvoice);
+  invInput.addEventListener("keydown", e => { if (e.key === "Enter") loadInvoice(); });
+
+  /* ------------------------------------------------------------
+     compare 표시
+  ------------------------------------------------------------ */
+  function renderCompare(item) {
+    const sap = Number(item.sap);
+    const compare = Number(item.compare);
+
+    if (sap === 0) return `<span></span>`;
+    if (compare === 0) return `<span class="text-green-600 font-semibold">입고완료</span>`;
+    if (compare === sap) return `<span class="text-blue-600 font-semibold">미입고</span>`;
+    if (compare < 0) return `<span class="text-blue-600 font-semibold">초과입고</span>`;
+    if (compare > 0 && compare < sap) {
+      return `<span class="text-red-600 font-semibold">${compare} (부분미입고)</span>`;
+    }
+    return `<span>${compare}</span>`;
+  }
+
+  /* ------------------------------------------------------------
+     테이블 렌더
+  ------------------------------------------------------------ */
+  function renderOutboundTable() {
+    scanTableBody.innerHTML = "";
+
+    outboundItems.forEach(item => {
+      const tr = document.createElement("tr");
+      let cls = "";
+
+      if (Number(item.sap) === 0) cls += " bg-red-100 ";
+      if (Number(item.compare) < 0) cls += " bg-blue-50 ";
+      if (item.status === "검수완료") cls += " bg-green-200 text-green-900 font-semibold ";
+      if (item.dup) cls += " bg-yellow-100 ";
+      if (item.barcode === lastScannedBarcode) cls += " ring-2 ring-amber-400 ";
+
+      tr.className = cls.trim();
+
+      const barcodeDisplay = item.barcode
+        ? item.barcode
+        : `<span class="text-red-600 font-semibold">바코드미등록</span>`;
+
+      const workDisplay = (item.work || "").toString().trim() || "-";
+
+      tr.innerHTML = `
+        <td class="px-3 py-2 whitespace-nowrap">${item.no}</td>
+        <td class="px-3 py-2 whitespace-nowrap">${item.mat}</td>
+        <td class="px-3 py-2 whitespace-nowrap">${item.box}</td>
+        <td class="px-3 py-2 whitespace-nowrap">${item.name}</td>
+
+        <td class="px-3 py-2 text-right whitespace-nowrap">${item.sap}</td>
+        <td class="px-3 py-2 text-right whitespace-nowrap">${item.wms}</td>
+
+        <td class="px-3 py-2 text-right whitespace-nowrap">${renderCompare(item)}</td>
+        <td class="px-3 py-2 whitespace-nowrap">${workDisplay}</td>
+        <td class="px-3 py-2 whitespace-nowrap">${barcodeDisplay}</td>
+        <td class="px-3 py-2 whitespace-nowrap">${item.status}</td>
+      `;
+
+      scanTableBody.appendChild(tr);
+    });
+
+    progress_total.textContent = `/ ${outboundItems.length} 품목`;
+  }
+
+  /* ------------------------------------------------------------
+     스캔 처리
+  ------------------------------------------------------------ */
+  barcodeInput.addEventListener("keydown", e => {
+    if (e.key === "Enter") {
+      if (scanLocked) return; // ✅ 모달 확인 전 스캔 금지
+      const code = barcodeInput.value.trim();
+      barcodeInput.value = "";
+      processScan(code);
+    }
+  });
+
+  function processScan(code) {
+    if (!code) return;
+
+    const existed = scannedCodesSet.has(code);
+    scannedCodesSet.add(code);
+
+    const idx = outboundItems.findIndex(i => i.barcode === code);
+    const item = idx >= 0 ? outboundItems[idx] : null;
+
+    //  미등록
+    if (!item) {
+      errorCountValue++;
+
+      const meta = barcodeIndexByCode[code];
+      let detail = `[미등록] ${code}`;
+      if (meta) detail += ` / 박스:${meta.box} / ${meta.name}`;
+      else detail += ` / 바코드표에도 없음`;
+
+      recentScanStatus.textContent = "미등록";
+      recentScanDetail.textContent = detail;
+
+      scanHistory.push({ code, type: "error", meta });
+      playSound(soundError);
+
+      openUnregModal(code, meta); //  모달 + 잠금
+
+      renderScanList();
+      updateProgress();
+      return;
+    }
+
+    // 정상
+    lastScannedBarcode = code;
+
+    if (existed) {
+      dupCountValue++;
+      item.dup = true;
+
+      scanHistory.push({ code, type: "dup", item });
+      playSound(soundDup);
+    } else {
+      item.status = "검수완료";
+      item.dup = false;
+
+      scanHistory.push({ code, type: "ok", item });
+      playSound(soundOk);
+    }
+
+    renderOutboundTable();
+    renderScanList();
+    updateProgress();
+  }
+
+  /* ------------------------------------------------------------
+     최근 3건만 표시
+  ------------------------------------------------------------ */
+  function renderScanList() {
+    if (scanHistory.length === 0) {
+      scanList.innerHTML = `<div class="text-slate-400">아직 스캔 없음…</div>`;
+      return;
+    }
+
+    const last3 = scanHistory.slice(-3).reverse();
+    scanList.innerHTML = "";
+
+    last3.forEach(entry => {
+      const div = document.createElement("div");
+
+      if (entry.type === "ok") {
+        div.className = "text-green-700";
+        div.textContent = `✅ ${entry.code} (${entry.item.box}) - ${entry.item.name}`;
+      } else if (entry.type === "dup") {
+        div.className = "text-amber-700";
+        div.textContent = `🔁 ${entry.code} (${entry.item.box}) - ${entry.item.name}`;
+      } else {
+        div.className = "text-red-600";
+        if (entry.meta)
+          div.textContent = `⛔ ${entry.code} / 박스:${entry.meta.box} / ${entry.meta.name}`;
+        else
+          div.textContent = `⛔ ${entry.code} (바코드표 없음)`;
+      }
+
+      scanList.appendChild(div);
+    });
+  }
+
+  /* ------------------------------------------------------------
+     진행률
+  ------------------------------------------------------------ */
+  function updateProgress() {
+    const total = outboundItems.length;
+    const completed = outboundItems.filter(it => it.status === "검수완료").length;
+
+    progress_now.textContent = completed;
+    progress_total.textContent = `/ ${total} 품목`;
+
+    const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+    progress_percent.textContent = percent + "%";
+    progress_bar.style.width = percent + "%";
+
+    error_count.textContent = errorCountValue;
+    dup_count.textContent = dupCountValue;
+  }
+
+  /* ------------------------------------------------------------
+     초기화
+  ------------------------------------------------------------ */
+  function resetUI() {
+    inv_no.textContent = "-";
+    country.textContent = "-";
+    containerEl.textContent = "-";
+    cbm.textContent = "-";
+    qty.textContent = "-";
+    load_time.textContent = "-";
+    load_loc.textContent = "-";
+
+    outboundItems = [];
+    scanHistory = [];
+    scannedCodesSet = new Set();
+    dupCountValue = 0;
+    errorCountValue = 0;
+    lastScannedBarcode = null;
+
+    scanTableBody.innerHTML = "";
+    scanList.innerHTML = `<div class="text-slate-400">아직 스캔 없음…</div>`;
+
+    progress_now.textContent = "0";
+    progress_total.textContent = "/ 0 품목";
+    progress_percent.textContent = "0%";
+    progress_bar.style.width = "0%";
+
+    error_count.textContent = "0";
+    dup_count.textContent = "0";
+
+    recentScanStatus.textContent = "-";
+    recentScanDetail.textContent = "";
+
+    // 모달 닫기/잠금 해제
+    if (unregModal) unregModal.classList.add("hidden");
+    setScanLocked(false);
+  }
+
+  /* ------------------------------------------------------------
+     초기 실행
+  ------------------------------------------------------------ */
+  if (!IS_FILE) loadBarcodeTable();
+
+  noticeCloseBtn.addEventListener("click", () => {
+    noticeModal.classList.add("hidden");
+    barcodeInput.focus();
+  });
+
+  btnNoticeOpen.addEventListener("click", () => {
+    if (!currentNotice) return alert("특이사항이 없습니다.");
+    playSound(soundModal);
+    noticeText.textContent = currentNotice;
+    noticeModal.classList.remove("hidden");
+  });
+
+  </script>
+
+  <!-- 저장(캡처) 기능 -->
   <script>
     document.getElementById("btnCapture").addEventListener("click", async () => {
       try {
         const target = document.getElementById("captureArea");
-        if (!target) {
-          alert("캡처 영역(#captureArea)을 찾을 수 없습니다.");
-          return;
-        }
+        if (!target) return alert("캡처 영역(#captureArea)을 찾을 수 없습니다.");
 
         const inv =
           (document.getElementById("inv_no")?.textContent || "").trim() ||
           (document.getElementById("invInput")?.value || "NO_INV").trim();
+
+        const safeInv = inv.replace(/[\\/:*?"<>|]/g, "_");
 
         const nowCnt = document.getElementById("progress_now")?.textContent?.trim();
         const totalCnt = document.getElementById("progress_total")?.textContent?.trim();
@@ -203,7 +654,7 @@
 
         const a = document.createElement("a");
         a.href = canvas.toDataURL("image/png");
-        a.download = `${inv}${suffix}.png`;
+        a.download = `${safeInv}${suffix}.png`;
         a.click();
       } catch (e) {
         console.error(e);

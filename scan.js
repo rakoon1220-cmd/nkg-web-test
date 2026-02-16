@@ -1,6 +1,5 @@
 /* ============================================================
-   출고검수 스캔 - 최종 안정판
-   + 미등록 바코드: 체크박스 확인 모달(잠금)
+   출고검수 스캔 
 ============================================================ */
 
 const IS_FILE = location.protocol === "file:";
@@ -40,7 +39,7 @@ const noticeModal = document.getElementById("noticeModal");
 const noticeText = document.getElementById("noticeText");
 const noticeCloseBtn = document.getElementById("noticeCloseBtn");
 
-/* ===== ✅ 미등록 모달 ===== */
+/* ===== 미등록 모달 ===== */
 const unregModal = document.getElementById("unregModal");
 const unregCode = document.getElementById("unregCode");
 const unregCheck = document.getElementById("unregCheck");
@@ -74,7 +73,7 @@ let lastScannedBarcode = null;
 let barcodeIndexByCode = {};
 
 /* =========================
-   ✅ 미등록 바코드 모달(스캔 잠금)
+   미등록 바코드 모달(스캔 잠금)
 ========================= */
 let scanLocked = false;
 
@@ -298,7 +297,7 @@ function renderOutboundTable() {
 ------------------------------------------------------------ */
 barcodeInput.addEventListener("keydown", e => {
   if (e.key === "Enter") {
-    if (scanLocked) return; // ✅ 모달 확인 전 스캔 금지
+    if (scanLocked) return; //  모달 확인 전 스캔 금지
     const code = barcodeInput.value.trim();
     barcodeInput.value = "";
     processScan(code);
@@ -332,7 +331,7 @@ function processScan(code) {
     scanHistory.push({ code, type: "error", meta });
     playSound(soundError);
 
-    // ✅ 모달 띄우고 잠금
+    //  모달 띄우고 잠금
     openUnregModal(code, meta);
 
     renderScanList();
@@ -454,7 +453,7 @@ function resetUI() {
   recentScanStatus.textContent = "-";
   recentScanDetail.textContent = "";
 
-  // ✅ 혹시 모달이 열려있던 상태면 닫고 잠금 해제
+  //  혹시 모달이 열려있던 상태면 닫고 잠금 해제
   if (unregModal) unregModal.classList.add("hidden");
   setScanLocked(false);
 }
